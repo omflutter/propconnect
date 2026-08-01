@@ -1,0 +1,26 @@
+.settlement-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.settlement-card {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settlement-card-title {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.settlement-card-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
