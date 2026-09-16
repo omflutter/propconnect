@@ -8,6 +8,7 @@ import { Deal } from '../models/deal.model';
 import { CollaborationRequest } from '../models/collaboration.model';
 import { Commission } from '../models/commission.model';
 import { Settlement } from '../models/settlement.model';
+import { WhatsAppLog } from '../models/whatsappLog.model';
 
 export const seedInitialData = async () => {
   try {
@@ -86,6 +87,57 @@ export const seedInitialData = async () => {
         },
       ]);
       console.log('[Seed] Default Audit Logs seeded.');
+    }
+
+    const waLogCount = await WhatsAppLog.count();
+    if (waLogCount === 0) {
+      await WhatsAppLog.bulkCreate([
+        {
+          messageCode: 'MSG-9801',
+          interaktId: 'b4b1c851-1866-4eb6-af09-3d3bc81e299e',
+          recipient: '+91 98765 43210',
+          countryCode: '+91',
+          event: 'Collaboration Request Alert',
+          templateName: 'wa_collab_req_v2',
+          status: 'Delivered',
+          payload: { propertyName: 'Sea Face Villa', requesterName: 'Om Shivam', agency: 'Sunrise Properties' },
+          sentAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
+        },
+        {
+          messageCode: 'MSG-9802',
+          interaktId: 'c1d2e3f4-2977-4eb6-bf10-4e4cd92f300f',
+          recipient: '+91 91234 56789',
+          countryCode: '+91',
+          event: 'Property Brochure Shared',
+          templateName: 'wa_prop_brochure_v1',
+          status: 'Read',
+          payload: { propertyName: 'Skyline Luxury Penthouse', price: '₹4.5 Cr', brochureUrl: 'https://propconnect.in/brochures/skyline.pdf' },
+          sentAt: new Date(Date.now() - 1000 * 60 * 90),
+        },
+        {
+          messageCode: 'MSG-9803',
+          interaktId: 'd2e3f4a5-3088-5fc7-cf21-5f5de03a411a',
+          recipient: '+91 99000 11223',
+          countryCode: '+91',
+          event: 'Deal Stage Changed to Closed',
+          templateName: 'wa_deal_update_v1',
+          status: 'Delivered',
+          payload: { dealCode: 'DL-501', stage: 'Deal Closed', dealValue: '₹1.8 Cr' },
+          sentAt: new Date(Date.now() - 1000 * 60 * 30),
+        },
+        {
+          messageCode: 'MSG-9804',
+          interaktId: 'e3f4a5b6-4199-6ad8-df32-6a6ef14b522b',
+          recipient: '+91 98201 00000',
+          countryCode: '+91',
+          event: 'Broker Onboarded Welcome',
+          templateName: 'wa_broker_welcome_v1',
+          status: 'Delivered',
+          payload: { brokerName: 'Rohit Sharma', agency: 'Sunrise Properties' },
+          sentAt: new Date(Date.now() - 1000 * 60 * 15),
+        },
+      ]);
+      console.log('[Seed] Default WhatsApp Logs initialized.');
     }
     const configCount = await PlatformConfig.count();
     if (configCount === 0) {

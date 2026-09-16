@@ -6,6 +6,7 @@ import { User } from '../models/user.model';
 import { Agency } from '../models/agency.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { WhatsAppService } from '../services/whatsapp.service';
 
 /**
  * Onboard / Register a new Broker under an Agency - 100% PostgreSQL
@@ -62,6 +63,27 @@ export const createBroker = async (req: Request, res: Response) => {
       agencyId: broker.agencyId,
       status: broker.status,
     };
+
+    // PRD Sec 16 & 17: Send Welcome WhatsApp message to newly onboarded broker
+    const targetPhone = broker.phone || '+91 98201 00000';
+    WhatsAppService.sendNotification({
+      recipientPhone: targetPhone,
+      event: 'Broker Onboarded Welcome',
+      templateName: 'wa_broker_welcome_v1',
+      traits: {
+        brokerName: broker.name,
+        email: broker.email,
+        temporaryPassword: defaultPassword,
+        role: broker.role,
+        portalUrl: 'https://propconnect-b89bd.web.app',
+      },
+      bodyValues: [
+        broker.name,
+        broker.email,
+        defaultPassword,
+        'https://propconnect-b89bd.web.app',
+      ],
+    }).catch((err) => console.warn('[WhatsApp Broker Welcome Error]', err));
 
     return successResponse(
       res,

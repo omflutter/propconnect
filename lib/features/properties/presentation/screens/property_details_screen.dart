@@ -6,6 +6,8 @@ import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/models/deal_model.dart';
 import 'package:propconnect/core/models/property_model.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
+import 'package:flutter/services.dart';
+import 'package:propconnect/core/network/api_service.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 
 class PropertyDetailsScreen extends ConsumerStatefulWidget {
@@ -272,6 +274,231 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     );
   }
 
+  void _showWhatsAppShareModal(BuildContext context, PropertyModel property) {
+    final clientPhoneCtrl = TextEditingController(text: '+91 ');
+    final clientNameCtrl = TextEditingController();
+    bool isDispatching = false;
+
+    final formattedShareText = '''
+🏡 *${property.title}*
+📍 Location: ${property.location}
+💰 Price: ${property.price}
+📐 Carpet Area: ${property.carpetArea.toInt()} sqft (Built-up: ${property.areaSqft.toInt()} sqft)
+🛋️ Configuration: ${property.bhk} - ${property.purpose}
+
+✨ Highlights: ${property.amenities.take(4).join(', ')}
+📄 View full details & brochure:
+https://propconnect-b89bd.web.app/properties/${property.id}
+'''.trim();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.chat_bubble_outline, color: Color(0xFF25D366)),
+                            Gap(8),
+                            Text(
+                              'Share on WhatsApp',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                          onPressed: () => Navigator.pop(modalContext),
+                        ),
+                      ],
+                    ),
+                    const Gap(6),
+                    const Text(
+                      'PRD Sec 16: Share property details or dispatch official brochure via Interakt WhatsApp API.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const Gap(18),
+
+                    // Section 1: Copy WhatsApp Formatted Message
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFBBF7D0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.message_outlined, size: 16, color: Color(0xFF16A34A)),
+                              Gap(6),
+                              Text(
+                                'Direct WhatsApp Message Card',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF15803D)),
+                              ),
+                            ],
+                          ),
+                          const Gap(8),
+                          Text(
+                            formattedShareText,
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF166534), height: 1.4),
+                          ),
+                          const Gap(10),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF16A34A),
+                              side: const BorderSide(color: Color(0xFF16A34A)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.copy_rounded, size: 16),
+                            label: const Text('Copy Formatted WhatsApp Message'),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: formattedShareText));
+                              Navigator.pop(modalContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  backgroundColor: Color(0xFF16A34A),
+                                  content: Text('WhatsApp message copied! Ready to paste to your client.'),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const Gap(20),
+
+                    // Section 2: Send Official Brochure via Interakt
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.send_to_mobile, size: 16, color: AppColors.primaryBlue),
+                              Gap(6),
+                              Text(
+                                'Send Official Brochure via Interakt API',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                              ),
+                            ],
+                          ),
+                          const Gap(12),
+                          TextField(
+                            controller: clientPhoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            decoration: InputDecoration(
+                              labelText: 'Client WhatsApp Number',
+                              prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                          const Gap(10),
+                          TextField(
+                            controller: clientNameCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Client Name (Optional)',
+                              prefixIcon: const Icon(Icons.person_outline, size: 18),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                          const Gap(14),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: isDispatching
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Icon(Icons.send_rounded, size: 16),
+                            label: Text(isDispatching ? 'Dispatching via Interakt...' : 'Dispatch Brochure to WhatsApp'),
+                            onPressed: isDispatching ? null : () async {
+                              final phone = clientPhoneCtrl.text.trim();
+                              if (phone.length < 10) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a valid 10-digit WhatsApp number')),
+                                );
+                                return;
+                              }
+
+                              setModalState(() => isDispatching = true);
+                              final res = await ApiService.sendWhatsAppBrochure(
+                                recipientPhone: phone,
+                                propertyName: property.title,
+                                clientName: clientNameCtrl.text.trim().isNotEmpty ? clientNameCtrl.text.trim() : null,
+                                propertyPrice: property.price,
+                                propertyLocation: property.location,
+                                bhk: property.bhk,
+                                carpetArea: '${property.carpetArea.toInt()} sqft',
+                                brochureUrl: 'https://propconnect-b89bd.web.app/brochure/${property.id}',
+                              );
+                              setModalState(() => isDispatching = false);
+
+                              if (context.mounted) {
+                                Navigator.pop(modalContext);
+                                if (res['success'] == true) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor: const Color(0xFF16A34A),
+                                      content: Text('Official brochure dispatched to $phone via Interakt!'),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(res['message'] ?? 'Failed to send WhatsApp brochure'),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildPremiumTextField(TextEditingController controller, String label, IconData icon, {int maxLines = 1, bool isRequired = true, bool isNumber = false}) {
     return TextFormField(
       controller: controller,
@@ -519,11 +746,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                   backgroundColor: Colors.black.withValues(alpha: 0.5),
                   child: IconButton(
                     icon: const Icon(Icons.share_outlined, color: Colors.white, size: 20),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Property link copied to clipboard!')),
-                      );
-                    },
+                    onPressed: () => _showWhatsAppShareModal(context, property),
                   ),
                 ),
               ),

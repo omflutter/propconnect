@@ -173,4 +173,27 @@ class ApiService {
       client.close();
     }
   }
+
+  /// PRD Sec 16: Send Property Brochure to Client WhatsApp via Interakt API
+  static Future<Map<String, dynamic>> sendWhatsAppBrochure({
+    required String recipientPhone,
+    required String propertyName,
+    String? clientName,
+    String? propertyPrice,
+    String? propertyLocation,
+    String? bhk,
+    String? carpetArea,
+    String? brochureUrl,
+  }) async {
+    return await post('/whatsapp/send-brochure', {
+      'recipientPhone': recipientPhone,
+      'clientName': clientName,
+      'propertyName': propertyName,
+      'propertyPrice': propertyPrice,
+      'propertyLocation': propertyLocation,
+      'bhk': bhk,
+      'carpetArea': carpetArea,
+      'brochureUrl': brochureUrl,
+    });
+  }
 }

@@ -11,6 +11,7 @@ import chatRoutes from './chat.routes';
 import dealRoutes from './deal.routes';
 import collaborationRoutes from './collaboration.routes';
 import commissionRoutes from './commission.routes';
+import whatsappRoutes from './whatsapp.routes';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use(chatRoutes);
 router.use(dealRoutes);
 router.use(collaborationRoutes);
 router.use(commissionRoutes);
+router.use(whatsappRoutes);
 
 export default router;

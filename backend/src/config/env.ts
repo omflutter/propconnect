@@ -20,4 +20,9 @@ export const env = {
   DB_SSL: process.env.DB_SSL === 'true' || true,
 
   JWT_SECRET: process.env.JWT_SECRET || 'super_secret_propconnect_jwt_key_2026',
+
+  // Interakt WhatsApp Business API
+  INTERAKT_API_KEY: process.env.INTERAKT_API_KEY || 'N2VnTGNPTnVfSjBWZG92YTFHcnpkR2RrLXRsemhtZ0tfcDVEaWlJQ0VjYzo=',
+  INTERAKT_BUSINESS_ID: process.env.INTERAKT_BUSINESS_ID || '1433676617960236',
+  INTERAKT_BASE_URL: process.env.INTERAKT_BASE_URL || 'https://api.interakt.ai/v1/public',
 };

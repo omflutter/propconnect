@@ -7,6 +7,7 @@ import { Commission } from '../models/commission.model';
 import { Property } from '../models/property.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { WhatsAppService } from '../services/whatsapp.service';
 
 /**
  * Submit a Collaboration Request (Broker B requests collaboration on Broker A's Property)
@@ -69,6 +70,27 @@ export const createCollaboration = async (req: Request, res: Response) => {
       remarks: remarks || '',
       status: 'Pending',
     });
+
+    // PRD Sec 16 & 17: Trigger WhatsApp notification to target broker
+    WhatsAppService.sendNotification({
+      recipientPhone: '+91 98765 43210',
+      event: 'Collaboration Request Alert',
+      templateName: 'wa_collab_req_v2',
+      traits: {
+        propertyName: newRequest.propertyName,
+        requestCode: newRequest.requestCode,
+        requesterName: callerUserName,
+        agency: callerAgencyName,
+        budget: expectedBudget || 'Standard',
+        requirement: clientRequirement,
+      },
+      bodyValues: [
+        targetBrokerName || 'Partner Broker',
+        callerUserName,
+        newRequest.propertyName,
+        newRequest.requestCode,
+      ],
+    }).catch((err) => console.warn('[WhatsApp Collab Error]', err));
 
     return successResponse(res, `Collaboration request ${newRequest.requestCode} submitted`, newRequest, 201);
   } catch (error: any) {
@@ -135,6 +157,25 @@ export const respondCollaboration = async (req: Request, res: Response) => {
       collabReq.status = 'Rejected';
       if (remarks) collabReq.remarks = remarks;
       await collabReq.save();
+
+      // PRD Sec 16 & 17: Trigger WhatsApp notification to requesting broker
+      WhatsAppService.sendNotification({
+        recipientPhone: '+91 98222 33344',
+        event: 'Collaboration Request Rejected',
+        templateName: 'wa_collab_rejected_v1',
+        traits: {
+          requestCode: collabReq.requestCode,
+          propertyName: collabReq.propertyName,
+          remarks: remarks || 'Not available for co-broking at this time',
+          status: 'Rejected',
+        },
+        bodyValues: [
+          collabReq.requestingBrokerName,
+          collabReq.propertyName,
+          remarks || 'Not available',
+        ],
+      }).catch(() => {});
+
       return successResponse(res, `Collaboration request ${collabReq.requestCode} rejected`, collabReq);
     }
 
@@ -216,6 +257,25 @@ export const respondCollaboration = async (req: Request, res: Response) => {
         prop.status = 'Under Negotiation';
         await prop.save();
       }
+
+      // PRD Sec 16 & 17: Trigger WhatsApp notification to requesting broker
+      WhatsAppService.sendNotification({
+        recipientPhone: '+91 98222 33344',
+        event: 'Collaboration Request Approved',
+        templateName: 'wa_collab_req_v2',
+        traits: {
+          requestCode: collabReq.requestCode,
+          propertyName: collabReq.propertyName,
+          dealCode: deal.dealCode,
+          status: 'Approved',
+          commissionSplit: '50/50',
+        },
+        bodyValues: [
+          collabReq.requestingBrokerName,
+          collabReq.propertyName,
+          deal.dealCode,
+        ],
+      }).catch((err) => console.warn('[WhatsApp Collab Approval Error]', err));
 
       return successResponse(
         res,

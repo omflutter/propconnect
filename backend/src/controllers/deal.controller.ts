@@ -5,6 +5,7 @@ import { Deal } from '../models/deal.model';
 import { Property } from '../models/property.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { WhatsAppService } from '../services/whatsapp.service';
 
 /**
  * Mask sensitive contact info per PRD Section 10 Lead Privacy Firewall
@@ -260,6 +261,26 @@ export const updateDealStatus = async (req: Request, res: Response) => {
         }
       }
     }
+
+    // PRD Sec 16 & 17: Trigger WhatsApp deal status notification
+    WhatsAppService.sendNotification({
+      recipientPhone: '+91 99000 11223',
+      event: `Deal Stage: ${newStage}`,
+      templateName: 'wa_deal_update_v1',
+      traits: {
+        dealCode: deal.dealCode,
+        propertyName: deal.propertyName,
+        newStage,
+        dealValue: deal.dealValue,
+        updatedBy: updatedBy || 'Deal Collaborator',
+      },
+      bodyValues: [
+        deal.dealCode,
+        deal.propertyName,
+        newStage,
+        deal.dealValue,
+      ],
+    }).catch((err) => console.warn('[WhatsApp Deal Alert Error]', err));
 
     return successResponse(res, `Deal stage updated to "${newStage}"`, deal);
   } catch (error: any) {

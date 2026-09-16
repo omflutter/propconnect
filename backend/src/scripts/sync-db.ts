@@ -9,6 +9,7 @@ import { CollaborationRequest } from '../models/collaboration.model';
 import { Commission } from '../models/commission.model';
 import { Settlement } from '../models/settlement.model';
 import { Message } from '../models/chat.model';
+import { WhatsAppLog } from '../models/whatsappLog.model';
 import { seedInitialData } from '../services/seed.service';
 
 async function runSync() {
@@ -30,6 +31,7 @@ async function runSync() {
     console.log('   - commissions (PRD Sec 12 50/50 multi-broker split)');
     console.log('   - settlements (PRD Sec 13 payment reference & ledger)');
     console.log('   - messages (PRD Sec 11 contextual chat)');
+    console.log('   - whatsapp_logs (PRD Sec 16 Interakt WhatsApp notifications)');
     console.log('   - audit_logs & platform_configs');
 
     // 3. Seed Initial Seed Data

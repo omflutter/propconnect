@@ -42,9 +42,9 @@ export function Gateways() {
     stripePublishableKey: 'pk_live_51M091823981023984',
     stripeSecretKey: 'sk_live_51M091823981023984_sec_99182',
     stripeWebhookSecret: 'whsec_stripe_live_991823',
-    whatsappToken: 'EAAG91028491028491028491028',
-    whatsappPhoneId: '109283019283019',
-    whatsappWabaId: '209384029384029',
+    whatsappToken: 'N2VnTGNPTnVfSjBWZG92YTFHcnpkR2RrLXRsemhtZ0tfcDVEaWlJQ0VjYzo=',
+    whatsappBusinessId: '1433676617960236',
+    whatsappWebhookUrl: 'https://propconnect-b89bd.web.app/api/v1/whatsapp/webhook',
   });
 
   const [invoices] = useState<InvoiceItem[]>([
@@ -503,34 +503,56 @@ This is a computer-generated GST invoice. No signature required.
                 </div>
               )}
 
-              {/* TAB 3: WHATSAPP & SMS */}
+              {/* TAB 3: WHATSAPP (INTERAKT) */}
               {activeTab === 'whatsapp' && (
                 <div className="form-section">
-                  <h3>WhatsApp Business API Credentials</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div>
+                      <h3 style={{ margin: 0 }}>Interakt WhatsApp Business API</h3>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                        Connected Meta Solution Provider for automated transactional alerts & property sharing.
+                      </p>
+                    </div>
+                    <span style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: 6, 
+                      padding: '4px 10px', 
+                      background: 'rgba(16, 185, 129, 0.1)', 
+                      color: 'var(--success)', 
+                      borderRadius: 16, 
+                      fontSize: 12, 
+                      fontWeight: 600 
+                    }}>
+                      <CheckCircle size={14} /> Active & Connected
+                    </span>
+                  </div>
+
                   <div className="form-grid">
                     <div className="form-group full-width">
-                      <label>Meta Permanent System User Access Token</label>
+                      <label>Interakt API Token (Base64 Key)</label>
                       <input 
                         type="password" 
                         value={gatewayForm.whatsappToken}
                         onChange={(e) => setGatewayForm({ ...gatewayForm, whatsappToken: e.target.value })}
-                        placeholder="EAAG..."
+                        placeholder="N2VnTGN..."
                       />
                     </div>
                     <div className="form-group">
-                      <label>WhatsApp Phone Number ID</label>
+                      <label>Interakt WhatsApp Business ID</label>
                       <input 
                         type="text" 
-                        value={gatewayForm.whatsappPhoneId}
-                        onChange={(e) => setGatewayForm({ ...gatewayForm, whatsappPhoneId: e.target.value })}
+                        value={gatewayForm.whatsappBusinessId}
+                        onChange={(e) => setGatewayForm({ ...gatewayForm, whatsappBusinessId: e.target.value })}
                       />
                     </div>
                     <div className="form-group">
-                      <label>WhatsApp Business Account ID (WABA ID)</label>
+                      <label>Webhook Callback Endpoint</label>
                       <input 
                         type="text" 
-                        value={gatewayForm.whatsappWabaId}
-                        onChange={(e) => setGatewayForm({ ...gatewayForm, whatsappWabaId: e.target.value })}
+                        readOnly
+                        value={gatewayForm.whatsappWebhookUrl}
+                        style={{ fontFamily: 'monospace', fontSize: 11, background: 'var(--background)' }}
                       />
                     </div>
                   </div>
