@@ -1,23 +1,87 @@
-import { Search, Filter, MoreVertical, Ticket, Clock, CheckCircle, X } from 'lucide-react';
-import { useState } from 'react';
+import { Search, Filter, MoreVertical, Ticket, Clock, CheckCircle, X, Plus, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
+import { apiFetch } from '../services/api';
 import './GlobalData.css';
 
 export function Support() {
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
-  const [tickets, setTickets] = useState([
-    { id: 'TKT-1001', subject: 'Cannot add new property', agency: 'Sunrise Properties', user: 'Om Shivam', status: 'Open', priority: 'High', date: '2026-07-23' },
-    { id: 'TKT-1002', subject: 'Billing issue with Pro plan', agency: 'Metro Reality India', user: 'Rajesh Kumar', status: 'In Progress', priority: 'Medium', date: '2026-07-22' },
-    { id: 'TKT-1003', subject: 'How to export deals?', agency: 'Bangalore Estates', user: 'Priya Sharma', status: 'Resolved', priority: 'Low', date: '2026-07-20' },
-  ]);
-
   const [searchQuery, setSearchQuery] = useState('');
+  const [agencies, setAgencies] = useState<any[]>([]);
+
+  const [newTicket, setNewTicket] = useState({
+    subject: '',
+    agency: '',
+    user: '',
+    priority: 'Medium',
+  });
+
+  const [tickets, setTickets] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('propconnect_support_tickets');
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return [];
+  });
+
+  useEffect(() => {
+    apiFetch<any[]>('/agencies').then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        setAgencies(res.data);
+        if (res.data.length > 0 && tickets.length === 0) {
+          const initialTickets = res.data.slice(0, 3).map((a, idx) => ({
+            id: `TKT-100${idx + 1}`,
+            subject: idx === 0 ? 'Billing inquiry for SaaS tier' : idx === 1 ? 'Broker onboarding verification query' : 'Property sync API webhook status',
+            agency: a.name,
+            user: a.contactPerson || 'Agency Admin',
+            status: idx === 0 ? 'Open' : idx === 1 ? 'In Progress' : 'Resolved',
+            priority: idx === 0 ? 'High' : 'Medium',
+            date: a.createdAt ? a.createdAt.substring(0, 10) : new Date().toISOString().substring(0, 10),
+          }));
+          setTickets(initialTickets);
+          try {
+            localStorage.setItem('propconnect_support_tickets', JSON.stringify(initialTickets));
+          } catch (_) {}
+        }
+      }
+    });
+  }, []);
 
   const handleResolve = (id: string) => {
-    setTickets(tickets.map(t => t.id === id ? { ...t, status: 'Resolved' } : t));
+    const updated = tickets.map(t => t.id === id ? { ...t, status: 'Resolved' } : t);
+    setTickets(updated);
+    try {
+      localStorage.setItem('propconnect_support_tickets', JSON.stringify(updated));
+    } catch (_) {}
     toast.success(`Ticket ${id} marked as resolved!`);
+  };
+
+  const handleCreateTicket = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTicket.subject.trim()) {
+      toast.error('Subject is required');
+      return;
+    }
+    const created = {
+      id: `TKT-${1000 + tickets.length + 1}`,
+      subject: newTicket.subject,
+      agency: newTicket.agency || (agencies[0]?.name || 'Sunrise Properties'),
+      user: newTicket.user || 'Agency Admin',
+      priority: newTicket.priority,
+      status: 'Open',
+      date: new Date().toISOString().substring(0, 10),
+    };
+    const updated = [created, ...tickets];
+    setTickets(updated);
+    try {
+      localStorage.setItem('propconnect_support_tickets', JSON.stringify(updated));
+    } catch (_) {}
+    setShowCreateModal(false);
+    setNewTicket({ subject: '', agency: '', user: '', priority: 'Medium' });
+    toast.success(`Ticket ${created.id} created successfully!`);
   };
 
   return (
@@ -28,18 +92,18 @@ export function Support() {
           <p style={{ fontSize: 13, marginTop: 4 }}>Manage help requests and technical issues from agency users.</p>
         </div>
         <div className="header-actions">
-          <button className="btn-secondary">Export Tickets</button>
-          <button className="btn-primary">Create Ticket</button>
+          <button className="btn-secondary" onClick={() => toast.success('Exporting tickets')}>Export Tickets</button>
+          <button className="btn-primary" onClick={() => setShowCreateModal(true)}>+ Create Ticket</button>
         </div>
       </div>
 
       <div className="card table-container">
         <div className="table-actions" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
           <div className="segmented-tabs">
-            <button className={statusFilter === 'All' ? 'active' : ''} onClick={() => setStatusFilter('All')}>All Tickets</button>
-            <button className={statusFilter === 'Open' ? 'active' : ''} onClick={() => setStatusFilter('Open')}>Open</button>
-            <button className={statusFilter === 'In Progress' ? 'active' : ''} onClick={() => setStatusFilter('In Progress')}>In Progress</button>
-            <button className={statusFilter === 'Resolved' ? 'active' : ''} onClick={() => setStatusFilter('Resolved')}>Resolved</button>
+            <button className={statusFilter === 'All' ? 'active' : ''} onClick={() => setStatusFilter('All')}>All Tickets ({tickets.length})</button>
+            <button className={statusFilter === 'Open' ? 'active' : ''} onClick={() => setStatusFilter('Open')}>Open ({tickets.filter(t => t.status === 'Open').length})</button>
+            <button className={statusFilter === 'In Progress' ? 'active' : ''} onClick={() => setStatusFilter('In Progress')}>In Progress ({tickets.filter(t => t.status === 'In Progress').length})</button>
+            <button className={statusFilter === 'Resolved' ? 'active' : ''} onClick={() => setStatusFilter('Resolved')}>Resolved ({tickets.filter(t => t.status === 'Resolved').length})</button>
           </div>
 
           <div style={{ display: 'flex', gap: 12 }}>
@@ -163,6 +227,69 @@ export function Support() {
             <div className="modal-footer">
               <button className="btn-primary" onClick={() => setShowFilterModal(false)}>Apply Filters</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Create New Support Ticket</h2>
+              <button className="icon-btn" onClick={() => setShowCreateModal(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleCreateTicket}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="form-group">
+                  <label>Subject / Issue Summary</label>
+                  <input 
+                    className="form-input" 
+                    required 
+                    placeholder="e.g. Cannot download GST invoice"
+                    value={newTicket.subject}
+                    onChange={(e) => setNewTicket({ ...newTicket, subject: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Target Agency</label>
+                  <select 
+                    className="form-select"
+                    value={newTicket.agency}
+                    onChange={(e) => setNewTicket({ ...newTicket, agency: e.target.value })}
+                  >
+                    {agencies.map(a => (
+                      <option key={a.id} value={a.name}>{a.name}</option>
+                    ))}
+                    {agencies.length === 0 && <option value="Sunrise Properties">Sunrise Properties</option>}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Reporter / Broker Name</label>
+                  <input 
+                    className="form-input" 
+                    placeholder="e.g. Om Shivam"
+                    value={newTicket.user}
+                    onChange={(e) => setNewTicket({ ...newTicket, user: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Priority</label>
+                  <select 
+                    className="form-select"
+                    value={newTicket.priority}
+                    onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+              </div>
+              <div className="modal-footer" style={{ marginTop: 20 }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Create Ticket</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

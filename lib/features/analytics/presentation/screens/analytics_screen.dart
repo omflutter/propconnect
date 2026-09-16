@@ -34,15 +34,66 @@ class AnalyticsScreen extends ConsumerWidget {
     final privateProperties = agencyProperties.where((p) => !p.isPublic).length;
 
     // 2. Calculate Deal Metrics for Agency
-    // We filter deals that involve properties owned by this agency
     final agencyDeals = allDeals.where((d) => agencyPropertyIds.contains(d.propertyId)).toList();
     
     final activeDeals = agencyDeals.where((d) => !d.isRequest && d.status != 'Closed').length;
     final closedDeals = agencyDeals.where((d) => !d.isRequest && d.status == 'Closed').length;
     final collabRequests = agencyDeals.where((d) => d.isRequest).length;
 
-    // Mock Commission (Based on closed deals involving agency properties)
-    final commissionGenerated = closedDeals * 100000;
+    // 3. Dynamic Real Commission Sum from Commission Provider
+    final allCommissions = ref.watch(commissionProvider);
+    double commissionGenerated = 0;
+    for (final comm in allCommissions) {
+      if (currentAgency.isNotEmpty &&
+          ((comm.agencyAName?.toLowerCase() == currentAgency.toLowerCase()) ||
+           (comm.agencyBName?.toLowerCase() == currentAgency.toLowerCase()))) {
+        if (comm.agencyAName?.toLowerCase() == currentAgency.toLowerCase()) {
+          commissionGenerated += comm.brokerAAmount;
+        } else {
+          commissionGenerated += comm.brokerBAAmount;
+        }
+      } else {
+        commissionGenerated += (comm.totalCommission * 0.5);
+      }
+    }
+    // If no explicit commission split records yet, calculate standard 2% split on closed deals
+    if (commissionGenerated == 0 && closedDeals > 0) {
+      for (final d in agencyDeals.where((d) => d.status == 'Closed')) {
+        commissionGenerated += (d.dealValue * 0.02 * 0.5);
+      }
+    }
+
+    // 4. Calculate Dynamic Monthly Performance Spots from Deals & Commissions
+    final List<double> dynamicMonthlyComm = [0, 0, 0, 0, 0, 0];
+    final List<double> dynamicMonthlyLeads = [0, 0, 0, 0, 0, 0];
+    final now = DateTime.now();
+
+    for (final deal in agencyDeals) {
+      final createdAt = deal.createdAt;
+      if (createdAt != null) {
+        final diffMonths = (now.year - createdAt.year) * 12 + (now.month - createdAt.month);
+        if (diffMonths >= 0 && diffMonths < 6) {
+          final spotIndex = 5 - diffMonths;
+          dynamicMonthlyLeads[spotIndex] += 1;
+          if (deal.status == 'Closed') {
+            dynamicMonthlyComm[spotIndex] += (deal.dealValue * 0.01);
+          }
+        }
+      }
+    }
+    for (final comm in allCommissions) {
+      final createdAt = comm.createdAt;
+      if (createdAt != null) {
+        final diffMonths = (now.year - createdAt.year) * 12 + (now.month - createdAt.month);
+        if (diffMonths >= 0 && diffMonths < 6) {
+          final spotIndex = 5 - diffMonths;
+          dynamicMonthlyComm[spotIndex] += comm.totalCommission;
+        }
+      }
+    }
+
+    final double maxCommSpot = dynamicMonthlyComm.fold(0.0, (prev, elem) => elem > prev ? elem : prev);
+    final double chartMaxComm = maxCommSpot > 0 ? (maxCommSpot * 1.3) : 100000;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -191,10 +242,10 @@ class AnalyticsScreen extends ConsumerWidget {
                         minX: 0,
                         maxX: 5,
                         minY: 0,
-                        maxY: 400000,
+                        maxY: chartMaxComm,
                         lineBarsData: [
                           LineChartBarData(
-                            spots: analytics.monthlyCommission.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
+                            spots: dynamicMonthlyComm.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
                             isCurved: true,
                             color: AppColors.primaryBlue,
                             barWidth: 3,
@@ -260,7 +311,7 @@ class AnalyticsScreen extends ConsumerWidget {
                           ),
                         ),
                         borderData: FlBorderData(show: false),
-                        barGroups: analytics.monthlyLeads.asMap().entries.map((e) {
+                        barGroups: dynamicMonthlyLeads.asMap().entries.map((e) {
                           return BarChartGroupData(
                             x: e.key,
                             barRods: [

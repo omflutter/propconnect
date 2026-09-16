@@ -10,5 +10,6 @@ const router = Router();
 router.post('/collaborations', createCollaboration);
 router.get('/collaborations', getCollaborations);
 router.put('/collaborations/:id/respond', respondCollaboration);
+router.post('/collaborations/:id/respond', respondCollaboration);
 
 export default router;

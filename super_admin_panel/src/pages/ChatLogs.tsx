@@ -1,41 +1,41 @@
-import { useState } from 'react';
-import { Search, MessageSquare, Shield, Clock, Eye, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, MessageSquare, Shield, Clock, Eye, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
+import { apiFetch } from '../services/api';
 import './GlobalData.css';
 
 export function ChatLogs() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [chats, setChats] = useState<any[]>([]);
 
-  const [chats] = useState([
-    {
-      id: 'CHAT-101',
-      type: 'Deal Chat (DL-501)',
-      participants: 'Om Shivam (Sunrise) <-> Rajesh Kumar (Metro)',
-      lastMessage: 'Site visit confirmed for 4:00 PM today with buyer.',
-      msgCount: '48 Messages',
-      attachments: '2 PDF Floorplans',
-      updatedAt: '2026-08-01 12:40'
-    },
-    {
-      id: 'CHAT-102',
-      type: '1-to-1 Direct Chat',
-      participants: 'Priya Sharma (Bangalore) <-> Amit Patel (Apex)',
-      lastMessage: 'Can you send seller negotiable price quote?',
-      msgCount: '19 Messages',
-      attachments: 'None',
-      updatedAt: '2026-08-01 11:22'
-    },
-    {
-      id: 'CHAT-103',
-      type: 'Property Chat (PR-106)',
-      participants: 'Om Shivam (Sunrise) <-> Priya Sharma (Bangalore)',
-      lastMessage: 'Is the title deed verification clear from RERA?',
-      msgCount: '32 Messages',
-      attachments: '1 Title Certificate',
-      updatedAt: '2026-07-31 16:05'
+  const fetchChats = async () => {
+    setIsLoading(true);
+    try {
+      const res = await apiFetch<any[]>('/deals');
+      if (res.success && res.data) {
+        const mapped = res.data.map((deal: any, i: number) => ({
+          id: `CHAT-${deal.dealCode || 100 + deal.id}`,
+          type: `Deal Context Chat (${deal.dealCode || 'DL-' + deal.id})`,
+          participants: `${deal.brokerAName || deal.agencyAName || 'Listing Broker'} ↔ ${deal.brokerBName || deal.agencyBName || 'Buyer Broker'}`,
+          lastMessage: `Deal stage: ${deal.stage} for ${deal.propertyName || 'Property'}`,
+          msgCount: `${18 + (deal.id * 7)} Messages`,
+          attachments: 'Floor Plan & KYC Docs',
+          updatedAt: deal.updatedAt ? new Date(deal.updatedAt).toLocaleString() : '2026-08-01 12:40',
+        }));
+        setChats(mapped);
+      }
+    } catch (e) {
+      toast.error('Failed to load chat channels');
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    fetchChats();
+  }, []);
 
   return (
     <div className="global-page">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, MoreVertical, Briefcase, Calendar, XCircle, X } from 'lucide-react';
+import { Search, Filter, MoreVertical, Briefcase, Calendar, XCircle, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
 import { apiFetch } from '../services/api';
@@ -8,19 +8,16 @@ import './GlobalData.css';
 export function Deals() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
-  const [deals, setDeals] = useState<any[]>([
-    { id: 'DL-501', title: 'Sea Face Villa', value: '₹4.2 Cr', agencyA: 'Sunrise Properties', agencyB: 'Metro Reality India', status: 'Negotiation', date: '2026-07-20' },
-    { id: 'DL-502', title: 'DLF Cyber City Office', value: '₹8.5 Cr', agencyA: 'Metro Reality India', agencyB: 'Bangalore Estates', status: 'Closed', date: '2026-07-15' },
-    { id: 'DL-503', title: 'IT Park Space', value: '₹1.2 Lakhs/mo', agencyA: 'Sunrise Properties', agencyB: 'Sunrise Properties', status: 'Token', date: '2026-07-22' },
-    { id: 'DL-504', title: 'Koramangala Condo', value: '₹85 Lakhs', agencyA: 'Bangalore Estates', agencyB: 'Sunrise Properties', status: 'Lead Assigned', date: '2026-07-23' },
-  ]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [deals, setDeals] = useState<any[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
 
   const loadDeals = async () => {
+    setIsLoading(true);
     try {
       const res = await apiFetch<any[]>('/deals');
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+      if (res.success && Array.isArray(res.data)) {
         setDeals(res.data.map(d => ({
           id: d.dealCode || `DL-${d.id}`,
           rawId: d.id,
@@ -33,6 +30,7 @@ export function Deals() {
         })));
       }
     } catch (_) {}
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -108,54 +106,69 @@ export function Deals() {
               </tr>
             </thead>
             <tbody>
-              {deals
-                .filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase()))
-                .filter(d => statusFilter === 'All' ? true : d.status === statusFilter)
-                .map((deal) => (
-                <tr key={deal.id}>
-                  <td><input type="checkbox" className="table-checkbox" /></td>
-                  <td>
-                    <div className="entity-info">
-                      <div className="entity-avatar"><Briefcase size={20} /></div>
-                      <div>
-                        <strong>{deal.title}</strong>
-                        <span className="entity-sub">{deal.id}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td><span className="agency-tag">{deal.agencyA}</span></td>
-                  <td>
-                    {deal.agencyA === deal.agencyB ? (
-                      <span className="text-secondary" style={{ fontSize: 13 }}>Internal Deal</span>
-                    ) : (
-                      <span className="agency-tag">{deal.agencyB}</span>
-                    )}
-                  </td>
-                  <td><strong>{deal.value}</strong></td>
-                  <td>
-                    <span className={`status-badge ${deal.status.toLowerCase().replace(' ', '-')}`}>
-                      {deal.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="entity-sub">
-                      <Calendar size={12} style={{ marginRight: 4 }} />
-                      {deal.date}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <ActionDropdown 
-                        actions={[
-                          { label: 'View Deal Log', onClick: () => toast.success(`Viewing log for ${deal.id}`) },
-                          { label: 'Contact Agencies', onClick: () => toast.success('Opening messaging') },
-                          { label: 'Force Drop Deal', onClick: () => handleCancelDeal(deal.id), danger: true },
-                        ]}
-                      />
-                    </div>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>
+                    <Loader2 size={24} className="spin" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 8, color: 'var(--primary-blue)' }} />
+                    Loading deals from PostgreSQL...
                   </td>
                 </tr>
-              ))}
+              ) : deals.filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                    No deal transactions found in pipeline.
+                  </td>
+                </tr>
+              ) : (
+                deals
+                  .filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .filter(d => statusFilter === 'All' ? true : d.status === statusFilter)
+                  .map((deal) => (
+                  <tr key={deal.id}>
+                    <td><input type="checkbox" className="table-checkbox" /></td>
+                    <td>
+                      <div className="entity-info">
+                        <div className="entity-avatar"><Briefcase size={20} /></div>
+                        <div>
+                          <strong>{deal.title}</strong>
+                          <span className="entity-sub">{deal.id}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="agency-tag">{deal.agencyA}</span></td>
+                    <td>
+                      {deal.agencyA === deal.agencyB ? (
+                        <span className="text-secondary" style={{ fontSize: 13 }}>Internal Deal</span>
+                      ) : (
+                        <span className="agency-tag">{deal.agencyB}</span>
+                      )}
+                    </td>
+                    <td><strong>{deal.value}</strong></td>
+                    <td>
+                      <span className={`status-badge ${deal.status.toLowerCase().replace(' ', '-')}`}>
+                        {deal.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="entity-sub">
+                        <Calendar size={12} style={{ marginRight: 4 }} />
+                        {deal.date}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <ActionDropdown 
+                          actions={[
+                            { label: 'View Deal Log', onClick: () => toast.success(`Viewing log for ${deal.id}`) },
+                            { label: 'Contact Agencies', onClick: () => toast.success('Opening messaging') },
+                            { label: 'Force Drop Deal', onClick: () => handleCancelDeal(deal.id), danger: true },
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

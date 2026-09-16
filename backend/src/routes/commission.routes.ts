@@ -15,5 +15,7 @@ router.put('/commissions/:id', updateCommission);
 
 router.get('/settlements', getSettlements);
 router.post('/settlements', createSettlement);
+router.get('/commissions/settlements', getSettlements);
+router.post('/commissions/settlements', createSettlement);
 
 export default router;

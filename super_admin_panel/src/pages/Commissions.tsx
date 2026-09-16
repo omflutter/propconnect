@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, DollarSign, Percent, ArrowRightLeft, CheckCircle2, Clock, X, Eye } from 'lucide-react';
+import { Search, Filter, DollarSign, Percent, ArrowRightLeft, CheckCircle2, Clock, X, Eye, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
 import { apiFetch } from '../services/api';
@@ -10,87 +10,41 @@ export function Commissions() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
-
-  const [commissions, setCommissions] = useState<any[]>([
-    {
-      id: 'COMM-801',
-      dealId: 'DL-501',
-      property: 'Sea Face Villa (Bandra West)',
-      dealValue: '₹4,20,00,000',
-      commType: 'Percentage (2%)',
-      totalComm: '₹8,40,000',
-      brokerA: 'Sunrise Properties (Om Shivam)',
-      brokerAShare: '50% (₹4,20,000)',
-      brokerB: 'Metro Reality (Rajesh Kumar)',
-      brokerBShare: '50% (₹4,20,000)',
-      status: 'Paid',
-      date: '2026-07-22'
-    },
-    {
-      id: 'COMM-802',
-      dealId: 'DL-502',
-      property: 'DLF Cyber City Office',
-      dealValue: '₹8,50,00,000',
-      commType: 'Percentage (1.5%)',
-      totalComm: '₹12,75,000',
-      brokerA: 'Metro Reality (Rajesh Kumar)',
-      brokerAShare: '60% (₹7,65,000)',
-      brokerB: 'Bangalore Estates (Priya Sharma)',
-      brokerBShare: '40% (₹5,10,000)',
-      status: 'Partially Paid',
-      date: '2026-07-20'
-    },
-    {
-      id: 'COMM-803',
-      dealId: 'DL-503',
-      property: 'Worli Penthouse',
-      dealValue: '₹12,00,00,000',
-      commType: 'Percentage (2%)',
-      totalComm: '₹24,00,000',
-      brokerA: 'Sunrise Properties (Om Shivam)',
-      brokerAShare: '50% (₹12,00,000)',
-      brokerB: 'Apex Realty (Amit Patel)',
-      brokerBShare: '50% (₹12,00,000)',
-      status: 'Pending',
-      date: '2026-07-24'
-    },
-    {
-      id: 'COMM-804',
-      dealId: 'DL-504',
-      property: 'Koramangala Tech Park Floor',
-      dealValue: '₹6,00,00,000',
-      commType: 'Flat Fee',
-      totalComm: '₹10,00,000',
-      brokerA: 'Bangalore Estates (Priya Sharma)',
-      brokerAShare: '50% (₹5,00,000)',
-      brokerB: 'Sunrise Properties (Om Shivam)',
-      brokerBShare: '50% (₹5,00,000)',
-      status: 'Pending',
-      date: '2026-07-28'
-    }
-  ]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [commissions, setCommissions] = useState<any[]>([]);
 
   const loadCommissions = async () => {
+    setIsLoading(true);
     try {
       const res = await apiFetch<any[]>('/commissions');
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        setCommissions(res.data.map(c => ({
-          id: c.commissionCode || `COMM-${c.id}`,
-          rawId: c.id,
-          dealId: c.dealCode || `DL-${c.dealId}`,
-          property: c.propertyName || 'Commercial Unit',
-          dealValue: typeof c.dealValue === 'number' ? `₹${c.dealValue.toLocaleString('en-IN')}` : c.dealValue,
-          commType: `${c.commissionType || 'Percentage'} (${c.commissionRate || 2}%)`,
-          totalComm: typeof c.totalCommission === 'number' ? `₹${c.totalCommission.toLocaleString('en-IN')}` : c.totalCommission,
-          brokerA: `${c.agencyAName || 'Agency A'} (${c.brokerAName || 'Broker A'})`,
-          brokerAShare: `${c.brokerASharePct || 50}% (${typeof c.brokerAAmount === 'number' ? '₹' + c.brokerAAmount.toLocaleString('en-IN') : c.brokerAAmount})`,
-          brokerB: `${c.agencyBName || 'Agency B'} (${c.brokerBName || 'Broker B'})`,
-          brokerBShare: `${c.brokerBSharePct || 50}% (${typeof c.brokerBAmount === 'number' ? '₹' + c.brokerBAmount.toLocaleString('en-IN') : c.brokerBAmount})`,
-          status: c.status || 'Pending',
-          date: c.createdAt ? c.createdAt.substring(0, 10) : new Date().toISOString().substring(0, 10),
-        })));
+      if (res.success && Array.isArray(res.data)) {
+        setCommissions(res.data.map(c => {
+          const totalCommNum = typeof c.totalCommission === 'number' ? c.totalCommission : parseFloat(String(c.totalCommission || '0').replace(/[^0-9.]/g, '')) || 0;
+          const brokerANum = typeof c.brokerAAmount === 'number' ? c.brokerAAmount : parseFloat(String(c.brokerAAmount || '0').replace(/[^0-9.]/g, '')) || (totalCommNum * 0.5);
+          const brokerBNum = typeof c.brokerBAmount === 'number' ? c.brokerBAmount : parseFloat(String(c.brokerBAmount || '0').replace(/[^0-9.]/g, '')) || (totalCommNum * 0.5);
+
+          return {
+            id: c.commissionCode || `COMM-${c.id}`,
+            rawId: c.id,
+            dealId: c.dealCode || `DL-${c.dealId}`,
+            property: c.propertyName || 'Commercial Unit',
+            dealValue: typeof c.dealValue === 'number' ? `₹${c.dealValue.toLocaleString('en-IN')}` : c.dealValue,
+            commType: `${c.commissionType || 'Percentage'} (${c.commissionRate || 2}%)`,
+            rawTotalComm: totalCommNum,
+            rawBrokerA: brokerANum,
+            rawBrokerB: brokerBNum,
+            totalComm: `₹${totalCommNum.toLocaleString('en-IN')}`,
+            brokerA: `${c.agencyAName || 'Agency A'} (${c.brokerAName || 'Broker A'})`,
+            brokerAShare: `${c.brokerASharePct || 50}% (₹${brokerANum.toLocaleString('en-IN')})`,
+            brokerB: `${c.agencyBName || 'Agency B'} (${c.brokerBName || 'Broker B'})`,
+            brokerBShare: `${c.brokerBSharePct || 50}% (₹${brokerBNum.toLocaleString('en-IN')})`,
+            status: c.status || 'Pending',
+            date: c.createdAt ? c.createdAt.substring(0, 10) : new Date().toISOString().substring(0, 10),
+          };
+        }));
       }
     } catch (_) {}
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -112,6 +66,18 @@ export function Commissions() {
     toast.success(`Commission ${id} marked as fully paid!`);
   };
 
+  // Dynamic Metrics Calculations
+  const totalPlatformComm = commissions.reduce((acc, c) => acc + (c.rawTotalComm || 0), 0);
+  const totalBrokerAShare = commissions.reduce((acc, c) => acc + (c.rawBrokerA || 0), 0);
+  const totalBrokerBShare = commissions.reduce((acc, c) => acc + (c.rawBrokerB || 0), 0);
+  const pendingSettlement = commissions.filter(c => c.status !== 'Paid').reduce((acc, c) => acc + (c.rawTotalComm || 0), 0);
+
+  const formatAmount = (num: number) => {
+    if (num >= 10000000) return `₹${(num / 10000000).toFixed(2)} Cr`;
+    if (num >= 100000) return `₹${(num / 100000).toFixed(2)} Lakhs`;
+    return `₹${num.toLocaleString('en-IN')}`;
+  };
+
   return (
     <div className="global-page">
       <div className="page-header">
@@ -121,27 +87,27 @@ export function Commissions() {
         </div>
         <div className="header-actions">
           <button className="btn-secondary" onClick={() => toast.success('Commission Audit Sheet Exported')}>Export CSV</button>
-          <button className="btn-primary" onClick={() => toast.success('Commission rule updated')}>Config Commission Split</button>
+          <button className="btn-primary" onClick={() => toast.success('Commission rule configured')}>Config Commission Split</button>
         </div>
       </div>
 
-      {/* Metrics Row */}
+      {/* Dynamic Metrics Row */}
       <div className="commission-metrics">
         <div className="comm-metric-card card">
           <span className="comm-metric-title">Total Platform Comm.</span>
-          <span className="comm-metric-value">₹55.15 Lakhs</span>
+          <span className="comm-metric-value">{formatAmount(totalPlatformComm)}</span>
         </div>
         <div className="comm-metric-card card">
           <span className="comm-metric-title">Broker A Total Share</span>
-          <span className="comm-metric-value" style={{ color: 'var(--primary-blue)' }}>₹28.85 Lakhs</span>
+          <span className="comm-metric-value" style={{ color: 'var(--primary-blue)' }}>{formatAmount(totalBrokerAShare)}</span>
         </div>
         <div className="comm-metric-card card">
           <span className="comm-metric-title">Broker B Total Share</span>
-          <span className="comm-metric-value" style={{ color: '#10b981' }}>₹26.30 Lakhs</span>
+          <span className="comm-metric-value" style={{ color: '#10b981' }}>{formatAmount(totalBrokerBShare)}</span>
         </div>
         <div className="comm-metric-card card">
           <span className="comm-metric-title">Pending Settlement</span>
-          <span className="comm-metric-value" style={{ color: 'var(--warning)' }}>₹34.00 Lakhs</span>
+          <span className="comm-metric-value" style={{ color: 'var(--warning)' }}>{formatAmount(pendingSettlement)}</span>
         </div>
       </div>
 
@@ -184,50 +150,65 @@ export function Commissions() {
               </tr>
             </thead>
             <tbody>
-              {commissions
-                .filter(c => c.property.toLowerCase().includes(searchQuery.toLowerCase()) || c.id.toLowerCase().includes(searchQuery.toLowerCase()) || c.dealId.toLowerCase().includes(searchQuery.toLowerCase()))
-                .filter(c => statusFilter === 'All' ? true : c.status === statusFilter)
-                .map((comm) => (
-                <tr key={comm.id}>
-                  <td><input type="checkbox" className="table-checkbox" /></td>
-                  <td>
-                    <div className="entity-info">
-                      <div>
-                        <strong>{comm.id}</strong>
-                        <span className="entity-sub">{comm.dealId}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td><strong>{comm.property}</strong></td>
-                  <td>{comm.dealValue}</td>
-                  <td><span style={{ fontWeight: 700, color: 'var(--primary-blue)' }}>{comm.totalComm}</span></td>
-                  <td>
-                    <div className="broker-split-badge">
-                      <span>{comm.brokerAShare}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="broker-split-badge">
-                      <span>{comm.brokerBShare}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${comm.status.toLowerCase().replace(' ', '-')}`}>
-                      {comm.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <ActionDropdown 
-                        actions={[
-                          { label: 'View Split Details', onClick: () => setSelectedRecord(comm) },
-                          { label: 'Mark as Paid', onClick: () => handleMarkPaid(comm.id) },
-                        ]}
-                      />
-                    </div>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px' }}>
+                    <Loader2 size={24} className="spin" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 8, color: 'var(--primary-blue)' }} />
+                    Loading commission ledger from PostgreSQL...
                   </td>
                 </tr>
-              ))}
+              ) : commissions.filter(c => c.property.toLowerCase().includes(searchQuery.toLowerCase()) || c.id.toLowerCase().includes(searchQuery.toLowerCase()) || c.dealId.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                <tr>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                    No commission split records found. Closed deals will generate multi-broker commissions automatically.
+                  </td>
+                </tr>
+              ) : (
+                commissions
+                  .filter(c => c.property.toLowerCase().includes(searchQuery.toLowerCase()) || c.id.toLowerCase().includes(searchQuery.toLowerCase()) || c.dealId.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .filter(c => statusFilter === 'All' ? true : c.status === statusFilter)
+                  .map((comm) => (
+                  <tr key={comm.id}>
+                    <td><input type="checkbox" className="table-checkbox" /></td>
+                    <td>
+                      <div className="entity-info">
+                        <div>
+                          <strong>{comm.id}</strong>
+                          <span className="entity-sub">{comm.dealId}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td><strong>{comm.property}</strong></td>
+                    <td>{comm.dealValue}</td>
+                    <td><span style={{ fontWeight: 700, color: 'var(--primary-blue)' }}>{comm.totalComm}</span></td>
+                    <td>
+                      <div className="broker-split-badge">
+                        <span>{comm.brokerAShare}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="broker-split-badge">
+                        <span>{comm.brokerBShare}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${comm.status.toLowerCase().replace(' ', '-')}`}>
+                        {comm.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <ActionDropdown 
+                          actions={[
+                            { label: 'View Split Details', onClick: () => setSelectedRecord(comm) },
+                            { label: 'Mark as Paid', onClick: () => handleMarkPaid(comm.id) },
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

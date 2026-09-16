@@ -139,25 +139,7 @@ class DealNotifier extends Notifier<List<DealModel>> {
     Future.microtask(() {
       fetchDeals();
     });
-    return _initialMockDeals();
-  }
-
-  List<DealModel> _initialMockDeals() {
-    final now = DateTime.now();
-    return [
-      DealModel(id: 'D-1256', dealCode: 'DL-501', propertyId: 'P-101', propertyName: '3 BHK Apartment', partnerBroker: 'Rahul Singh', partnerAgency: 'Singh Realty', status: 'Token Done', amount: '₹1.25 Cr', dealValue: 12500000, createdAt: now.subtract(const Duration(days: 2))),
-      DealModel(id: 'D-1255', dealCode: 'DL-502', propertyId: 'P-103', propertyName: '4 BHK Villa', partnerBroker: 'Neha Gupta', partnerAgency: 'Sunrise Properties', status: 'Negotiation', amount: '₹3.50 Cr', dealValue: 35000000, createdAt: now.subtract(const Duration(days: 5))),
-      DealModel(id: 'D-1254', dealCode: 'DL-503', propertyId: 'P-102', propertyName: 'Office Space', partnerBroker: 'Vikram Joshi', partnerAgency: 'Elite Real Estate', status: 'Agreement Signed', amount: '₹1.20 Cr', dealValue: 12000000, createdAt: now.subtract(const Duration(days: 10))),
-      // Sent Requests (isRequest: true, isIncomingRequest: false)
-      DealModel(id: 'R-001', dealCode: 'REQ-101', propertyId: 'P-103', propertyName: 'Luxury Penthouse', partnerBroker: 'Arun Sharma', partnerAgency: 'Skyline Homes', status: 'Pending', amount: '₹5.5 Cr', dealValue: 55000000, isRequest: true, clientRequirement: 'Client is looking for a sea-facing penthouse with a private pool.', remarks: 'Urgent requirement, client is moving in next month.', createdAt: now.subtract(const Duration(hours: 2))),
-      // Incoming Requests (isRequest: true, isIncomingRequest: true)
-      DealModel(id: 'R-002', dealCode: 'REQ-102', propertyId: 'P-102', propertyName: 'Retail Shop', partnerBroker: 'Kiran Patel', partnerAgency: 'Prime Spaces', status: 'Pending', amount: '₹80 L', dealValue: 8000000, isRequest: true, isIncomingRequest: true, clientRequirement: 'Need a shop with heavy footfall for a bakery.', createdAt: now.subtract(const Duration(hours: 5))),
-      // Responded Requests (isRequest: false, but status shows it was a request)
-      DealModel(id: 'R-003', dealCode: 'REQ-103', propertyId: 'P-103', propertyName: 'Sea-Facing Villa', partnerBroker: 'Ravi Verma', partnerAgency: 'Verma Properties', status: 'Rejected', amount: '₹12 Cr', dealValue: 120000000, isRequest: false, isIncomingRequest: true, clientRequirement: 'Requires 4 parking spots minimum.', createdAt: now.subtract(const Duration(days: 1)), respondedAt: now.subtract(const Duration(hours: 10))),
-      DealModel(id: 'R-004', dealCode: 'REQ-104', propertyId: 'P-104', propertyName: 'Cozy Apartment', partnerBroker: 'Neha Gupta', partnerAgency: 'Sunrise Properties', status: 'Approved', amount: '₹1.2 Cr', dealValue: 12000000, isRequest: false, isIncomingRequest: true, clientRequirement: 'Fully furnished required for a young couple.', remarks: 'Let me know if price is negotiable.', createdAt: now.subtract(const Duration(days: 2)), respondedAt: now.subtract(const Duration(days: 1))),
-      // Sent Requests that they responded to
-      DealModel(id: 'R-005', dealCode: 'REQ-105', propertyId: 'P-101', propertyName: '3 BHK Apartment', partnerBroker: 'Amit Patel', partnerAgency: 'Patel Realty', status: 'Approved', amount: '₹3.4 Cr', dealValue: 34000000, isRequest: false, isIncomingRequest: false, createdAt: now.subtract(const Duration(days: 4)), respondedAt: now.subtract(const Duration(days: 3))),
-    ];
+    return [];
   }
 
   Future<void> fetchDeals() async {
@@ -193,9 +175,7 @@ class DealNotifier extends Notifier<List<DealModel>> {
         }
       }
 
-      if (fetched.isNotEmpty) {
-        state = fetched;
-      }
+      state = fetched;
     } catch (_) {}
   }
 
@@ -286,57 +266,7 @@ class CommissionNotifier extends Notifier<List<CommissionModel>> {
   @override
   List<CommissionModel> build() {
     Future.microtask(() => fetchCommissions());
-    return _initialMockCommissions();
-  }
-
-  List<CommissionModel> _initialMockCommissions() {
-    return [
-      CommissionModel(
-        id: '1',
-        commissionCode: 'COMM-801',
-        dealId: 'DL-501',
-        dealValue: 12500000,
-        commissionType: 'Percentage',
-        commissionRate: 2.0,
-        totalCommission: 250000,
-        brokerASharePct: 50.0,
-        brokerBSharePct: 50.0,
-        brokerAAmount: 125000,
-        brokerBAAmount: 125000,
-        status: 'Settled',
-        createdAt: DateTime.now().subtract(const Duration(days: 3)),
-      ),
-      CommissionModel(
-        id: '2',
-        commissionCode: 'COMM-802',
-        dealId: 'DL-502',
-        dealValue: 35000000,
-        commissionType: 'Percentage',
-        commissionRate: 2.0,
-        totalCommission: 700000,
-        brokerASharePct: 50.0,
-        brokerBSharePct: 50.0,
-        brokerAAmount: 350000,
-        brokerBAAmount: 350000,
-        status: 'Partial',
-        createdAt: DateTime.now().subtract(const Duration(days: 7)),
-      ),
-      CommissionModel(
-        id: '3',
-        commissionCode: 'COMM-803',
-        dealId: 'DL-503',
-        dealValue: 12000000,
-        commissionType: 'Percentage',
-        commissionRate: 2.0,
-        totalCommission: 240000,
-        brokerASharePct: 50.0,
-        brokerBSharePct: 50.0,
-        brokerAAmount: 120000,
-        brokerBAAmount: 120000,
-        status: 'Pending',
-        createdAt: DateTime.now().subtract(const Duration(days: 12)),
-      ),
-    ];
+    return [];
   }
 
   Future<void> fetchCommissions() async {
@@ -360,41 +290,12 @@ class SettlementNotifier extends Notifier<List<SettlementModel>> {
   @override
   List<SettlementModel> build() {
     Future.microtask(() => fetchSettlements());
-    return _initialMockSettlements();
-  }
-
-  List<SettlementModel> _initialMockSettlements() {
-    return [
-      SettlementModel(
-        id: '1',
-        settlementCode: 'SET-901',
-        commissionId: '1',
-        dealId: 'DL-501',
-        amountReceived: 250000,
-        amountPending: 0,
-        paymentMethod: 'NEFT',
-        referenceNumber: 'NEFT-88910248',
-        settlementDate: DateTime.now().subtract(const Duration(days: 2)),
-        status: 'Received',
-      ),
-      SettlementModel(
-        id: '2',
-        settlementCode: 'SET-902',
-        commissionId: '2',
-        dealId: 'DL-502',
-        amountReceived: 350000,
-        amountPending: 350000,
-        paymentMethod: 'UPI',
-        referenceNumber: 'UPI-99281729',
-        settlementDate: DateTime.now().subtract(const Duration(days: 5)),
-        status: 'Pending',
-      ),
-    ];
+    return [];
   }
 
   Future<void> fetchSettlements() async {
     try {
-      final res = await ApiService.get('/commissions/settlements');
+      final res = await ApiService.get('/settlements');
       if (res['success'] == true && res['data'] is List) {
         final list = (res['data'] as List)
             .map((e) => SettlementModel.fromJson(Map<String, dynamic>.from(e)))
@@ -406,7 +307,7 @@ class SettlementNotifier extends Notifier<List<SettlementModel>> {
 
   Future<bool> recordSettlement(Map<String, dynamic> data) async {
     try {
-      final res = await ApiService.post('/commissions/settlements', data);
+      final res = await ApiService.post('/settlements', data);
       if (res['success'] == true) {
         await fetchSettlements();
         return true;
@@ -435,10 +336,13 @@ class AnalyticsModel {
 class AnalyticsNotifier extends Notifier<AnalyticsModel> {
   @override
   AnalyticsModel build() {
+    final userData = AuthStorageService.getUserData();
+    final agencyData = userData?['agency'] as Map<String, dynamic>?;
+    final brokerCount = (agencyData?['brokerCount'] as num? ?? userData?['activeBrokers'] as num? ?? 1).toInt();
     return AnalyticsModel(
-      activeBrokers: 12, // Number of brokers in 'Sunrise Properties'
-      monthlyCommission: [120000, 150000, 180000, 100000, 250000, 300000],
-      monthlyLeads: [5, 8, 12, 10, 18, 25],
+      activeBrokers: brokerCount,
+      monthlyCommission: [0, 0, 0, 0, 0, 0],
+      monthlyLeads: [0, 0, 0, 0, 0, 0],
     );
   }
 }

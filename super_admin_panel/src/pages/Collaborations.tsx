@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Search, Filter, Network, CheckCircle, XCircle, Clock, X, ArrowRight, UserCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Filter, Network, CheckCircle, XCircle, Clock, X, ArrowRight, UserCheck, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
+import { apiFetch } from '../services/api';
 import './GlobalData.css';
 import './Collaborations.css';
 
@@ -9,61 +10,62 @@ export function Collaborations() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCollab, setSelectedCollab] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [requests, setRequests] = useState<any[]>([]);
 
-  const [requests, setRequests] = useState([
-    {
-      id: 'REQ-301',
-      propertyId: 'PR-104 (Sea Face Villa)',
-      brokerA: 'Sunrise Properties (Om Shivam)',
-      brokerB: 'Metro Reality (Rajesh Kumar)',
-      clientRequirement: 'NRI Client looking for 4BHK Sea View Penthouse/Villa in Bandra',
-      budget: '₹4.50 Cr',
-      remarks: 'Client ready with 10% token amount upfront.',
-      date: '2026-07-28',
-      status: 'Approved'
-    },
-    {
-      id: 'REQ-302',
-      propertyId: 'PR-105 (DLF Cyber City Office)',
-      brokerA: 'Metro Reality (Rajesh Kumar)',
-      brokerB: 'Bangalore Estates (Priya Sharma)',
-      clientRequirement: 'Fintech Startup seeking 5,000 sq.ft. commercial office space',
-      budget: '₹8.50 Cr',
-      remarks: 'Site visit scheduled for coming Monday.',
-      date: '2026-07-30',
-      status: 'Pending'
-    },
-    {
-      id: 'REQ-303',
-      propertyId: 'PR-106 (Worli Luxury Flat)',
-      brokerA: 'Sunrise Properties (Om Shivam)',
-      brokerB: 'Apex Realty (Amit Patel)',
-      clientRequirement: 'Luxury residential requirement with private pool',
-      budget: '₹12.00 Cr',
-      remarks: 'Client budget too low compared to seller expectation.',
-      date: '2026-07-26',
-      status: 'Rejected'
-    },
-    {
-      id: 'REQ-304',
-      propertyId: 'PR-107 (Koramangala Plot)',
-      brokerA: 'Bangalore Estates (Priya Sharma)',
-      brokerB: 'Sunrise Properties (Om Shivam)',
-      clientRequirement: 'Commercial plot for boutique hotel construction',
-      budget: '₹6.00 Cr',
-      remarks: 'Client bought alternate property.',
-      date: '2026-07-22',
-      status: 'Cancelled'
-    }
-  ]);
+  const loadCollaborations = async () => {
+    setIsLoading(true);
+    try {
+      const res = await apiFetch<any[]>('/collaborations');
+      if (res.success && Array.isArray(res.data)) {
+        setRequests(res.data.map(r => ({
+          id: r.requestCode || `REQ-${r.id}`,
+          rawId: r.id,
+          propertyId: `${r.propertyCode || 'PR-' + (r.propertyId || '')} (${r.propertyName || 'Property'})`,
+          brokerA: `${r.targetAgencyName || 'Sunrise Properties'} (${r.targetBrokerName || 'Listing Broker'})`,
+          brokerB: `${r.requestingAgencyName || 'Partner Realty'} (${r.requestingBrokerName || 'Buyer Broker'})`,
+          clientRequirement: r.clientRequirement || 'Direct client requirement submitted',
+          budget: r.expectedBudget || r.propertyPrice || '₹1.00 Cr',
+          remarks: r.remarks || 'Standard broker collaboration request',
+          date: r.createdAt ? r.createdAt.substring(0, 10) : new Date().toISOString().substring(0, 10),
+          status: r.status || 'Pending',
+        })));
+      }
+    } catch (_) {}
+    setIsLoading(false);
+  };
 
-  const handleApprove = (id: string) => {
+  useEffect(() => {
+    loadCollaborations();
+  }, []);
+
+  const handleApprove = async (id: string) => {
+    const target = requests.find(r => r.id === id);
     setRequests(requests.map(r => r.id === id ? { ...r, status: 'Approved' } : r));
+
+    if (target?.rawId) {
+      try {
+        await apiFetch(`/collaborations/${target.rawId}/respond`, {
+          method: 'PUT',
+          body: JSON.stringify({ action: 'approve' }),
+        });
+      } catch (_) {}
+    }
     toast.success(`Collaboration Request ${id} approved & Deal Created!`);
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
+    const target = requests.find(r => r.id === id);
     setRequests(requests.map(r => r.id === id ? { ...r, status: 'Rejected' } : r));
+
+    if (target?.rawId) {
+      try {
+        await apiFetch(`/collaborations/${target.rawId}/respond`, {
+          method: 'PUT',
+          body: JSON.stringify({ action: 'reject' }),
+        });
+      } catch (_) {}
+    }
     toast.error(`Collaboration Request ${id} rejected.`);
   };
 
@@ -130,47 +132,62 @@ export function Collaborations() {
               </tr>
             </thead>
             <tbody>
-              {requests
-                .filter(r => r.propertyId.toLowerCase().includes(searchQuery.toLowerCase()) || r.id.toLowerCase().includes(searchQuery.toLowerCase()) || r.brokerB.toLowerCase().includes(searchQuery.toLowerCase()))
-                .filter(r => statusFilter === 'All' ? true : r.status === statusFilter)
-                .map((req) => (
-                <tr key={req.id}>
-                  <td><input type="checkbox" className="table-checkbox" /></td>
-                  <td>
-                    <div className="entity-info">
-                      <div>
-                        <strong>{req.propertyId}</strong>
-                        <span className="entity-sub">{req.id}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td><span className="agency-tag">{req.brokerA}</span></td>
-                  <td><span className="agency-tag" style={{ borderColor: 'var(--primary-blue-light)' }}>{req.brokerB}</span></td>
-                  <td><strong>{req.budget}</strong></td>
-                  <td>
-                    <div className="entity-sub">
-                      <Clock size={12} style={{ marginRight: 4 }} />
-                      {req.date}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${req.status.toLowerCase().replace(' ', '-')}`}>
-                      {req.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <ActionDropdown 
-                        actions={[
-                          { label: 'View Request Details', onClick: () => setSelectedCollab(req) },
-                          { label: 'Force Approve & Create Deal', onClick: () => handleApprove(req.id) },
-                          { label: 'Force Reject Request', onClick: () => handleReject(req.id), danger: true },
-                        ]}
-                      />
-                    </div>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>
+                    <Loader2 size={24} className="spin" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 8, color: 'var(--primary-blue)' }} />
+                    Loading collaboration requests from PostgreSQL...
                   </td>
                 </tr>
-              ))}
+              ) : requests.filter(r => r.propertyId.toLowerCase().includes(searchQuery.toLowerCase()) || r.id.toLowerCase().includes(searchQuery.toLowerCase()) || r.brokerB.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                    No broker collaboration requests found.
+                  </td>
+                </tr>
+              ) : (
+                requests
+                  .filter(r => r.propertyId.toLowerCase().includes(searchQuery.toLowerCase()) || r.id.toLowerCase().includes(searchQuery.toLowerCase()) || r.brokerB.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .filter(r => statusFilter === 'All' ? true : r.status === statusFilter)
+                  .map((req) => (
+                  <tr key={req.id}>
+                    <td><input type="checkbox" className="table-checkbox" /></td>
+                    <td>
+                      <div className="entity-info">
+                        <div>
+                          <strong>{req.propertyId}</strong>
+                          <span className="entity-sub">{req.id}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="agency-tag">{req.brokerA}</span></td>
+                    <td><span className="agency-tag" style={{ borderColor: 'var(--primary-blue-light)' }}>{req.brokerB}</span></td>
+                    <td><strong>{req.budget}</strong></td>
+                    <td>
+                      <div className="entity-sub">
+                        <Clock size={12} style={{ marginRight: 4 }} />
+                        {req.date}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${req.status.toLowerCase().replace(' ', '-')}`}>
+                        {req.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <ActionDropdown 
+                          actions={[
+                            { label: 'View Request Details', onClick: () => setSelectedCollab(req) },
+                            { label: 'Force Approve & Create Deal', onClick: () => handleApprove(req.id) },
+                            { label: 'Force Reject Request', onClick: () => handleReject(req.id), danger: true },
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

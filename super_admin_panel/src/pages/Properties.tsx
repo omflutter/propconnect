@@ -1,24 +1,51 @@
-import { useState } from 'react';
-import { Search, Filter, MoreVertical, Building2, MapPin, Trash2, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Filter, MoreVertical, Building2, MapPin, Trash2, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
+import { apiFetch } from '../services/api';
 import './GlobalData.css';
 
 export function Properties() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
-  const [properties, setProperties] = useState([
-    { id: 'PR-104', title: 'Sea Face Villa', location: 'Bandra West, Mumbai', price: '₹4.2 Cr', agency: 'Sunrise Properties', type: 'Sale', status: 'Available' },
-    { id: 'PR-105', title: 'DLF Cyber City Office', location: 'Gurugram, Delhi NCR', price: '₹8.5 Cr', agency: 'Metro Reality India', type: 'Sale', status: 'Under Offer' },
-    { id: 'PR-106', title: 'Koramangala Condo', location: 'Bangalore', price: '₹85 Lakhs', agency: 'Bangalore Estates', type: 'Sale', status: 'Available' },
-    { id: 'PR-107', title: 'IT Park Space', location: 'Hinjewadi, Pune', price: '₹1.2 Lakhs/mo', agency: 'Sunrise Properties', type: 'Rent', status: 'Available' },
-    { id: 'PR-108', title: 'Andheri East Apartment', location: 'Mumbai', price: '₹1.5 Cr', agency: 'Sunrise Properties', type: 'Sale', status: 'Sold' },
-  ]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [properties, setProperties] = useState<any[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleDelete = (id: string) => {
+  const loadProperties = async () => {
+    setIsLoading(true);
+    try {
+      const res = await apiFetch<any[]>('/properties');
+      if (res.success && Array.isArray(res.data)) {
+        setProperties(res.data.map(p => ({
+          id: p.propertyCode || `PR-${p.id}`,
+          rawId: p.id,
+          title: p.title || 'Residential Property',
+          location: p.location || 'Mumbai, Maharashtra',
+          price: p.priceFormatted || (typeof p.price === 'number' ? `₹${(p.price / 10000000).toFixed(2)} Cr` : (p.price || '₹1.00 Cr')),
+          agency: p.agencyName || 'Sunrise Properties',
+          type: p.listingType || p.type || 'Sale',
+          status: p.status || 'Available',
+        })));
+      }
+    } catch (_) {}
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    loadProperties();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    const target = properties.find(p => p.id === id);
     setProperties(properties.filter(p => p.id !== id));
+
+    if (target?.rawId) {
+      try {
+        await apiFetch(`/properties/${target.rawId}`, { method: 'DELETE' });
+      } catch (_) {}
+    }
     toast.success(`Property ${id} removed globally.`);
   };
 
@@ -74,47 +101,62 @@ export function Properties() {
               </tr>
             </thead>
             <tbody>
-              {properties
-                .filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.location.toLowerCase().includes(searchQuery.toLowerCase()))
-                .filter(p => statusFilter === 'All' ? true : p.status === statusFilter)
-                .map((prop) => (
-                <tr key={prop.id}>
-                  <td><input type="checkbox" className="table-checkbox" /></td>
-                  <td>
-                    <div className="entity-info">
-                      <div className="entity-avatar"><Building2 size={20} /></div>
-                      <div>
-                        <strong>{prop.title}</strong>
-                        <span className="entity-sub">
-                          <MapPin size={12} style={{ display: 'inline', marginRight: 4 }} />
-                          {prop.location}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="agency-tag">{prop.agency}</span>
-                  </td>
-                  <td>{prop.type}</td>
-                  <td><strong>{prop.price}</strong></td>
-                  <td>
-                    <span className={`status-badge ${prop.status.toLowerCase().replace(' ', '-')}`}>
-                      {prop.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <ActionDropdown 
-                        actions={[
-                          { label: 'View Property Details', onClick: () => toast.success(`Viewing ${prop.title}`) },
-                          { label: 'Edit Listing', onClick: () => toast.success('Edit mode') },
-                          { label: 'Delete Listing', onClick: () => handleDelete(prop.id), danger: true },
-                        ]}
-                      />
-                    </div>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>
+                    <Loader2 size={24} className="spin" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 8, color: 'var(--primary-blue)' }} />
+                    Loading global inventory from PostgreSQL...
                   </td>
                 </tr>
-              ))}
+              ) : properties.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.location.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                    No properties found in global inventory.
+                  </td>
+                </tr>
+              ) : (
+                properties
+                  .filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.location.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .filter(p => statusFilter === 'All' ? true : p.status === statusFilter)
+                  .map((prop) => (
+                  <tr key={prop.id}>
+                    <td><input type="checkbox" className="table-checkbox" /></td>
+                    <td>
+                      <div className="entity-info">
+                        <div className="entity-avatar"><Building2 size={20} /></div>
+                        <div>
+                          <strong>{prop.title}</strong>
+                          <span className="entity-sub">
+                            <MapPin size={12} style={{ display: 'inline', marginRight: 4 }} />
+                            {prop.location}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="agency-tag">{prop.agency}</span>
+                    </td>
+                    <td>{prop.type}</td>
+                    <td><strong>{prop.price}</strong></td>
+                    <td>
+                      <span className={`status-badge ${prop.status.toLowerCase().replace(' ', '-')}`}>
+                        {prop.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <ActionDropdown 
+                          actions={[
+                            { label: 'View Property Details', onClick: () => toast.success(`Viewing ${prop.title}`) },
+                            { label: 'Edit Listing', onClick: () => toast.success('Edit mode') },
+                            { label: 'Delete Listing', onClick: () => handleDelete(prop.id), danger: true },
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
