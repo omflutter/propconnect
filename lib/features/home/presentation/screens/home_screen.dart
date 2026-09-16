@@ -74,6 +74,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             await Future.wait([
               ref.read(propertyProvider.notifier).fetchProperties(),
               ref.read(unreadMessagesProvider.notifier).fetchUnreadCount(),
+              ref.read(unreadNotificationsProvider.notifier).fetchUnreadCount(),
             ]);
           },
           color: AppColors.primaryBlue,
@@ -108,6 +109,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   SliverAppBar _buildAppBar(BuildContext context) {
     final unreadMessagesCount = ref.watch(unreadMessagesProvider);
+    final unreadNotificationsCount = ref.watch(unreadNotificationsProvider);
 
     return SliverAppBar(
       pinned: true,
@@ -143,7 +145,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onPressed: () => context.push('/chat'),
         ),
         IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: AppColors.textPrimary),
+          icon: unreadNotificationsCount > 0
+              ? Badge(
+                  label: Text('$unreadNotificationsCount'),
+                  child: const Icon(Icons.notifications_outlined, color: AppColors.textPrimary),
+                )
+              : const Icon(Icons.notifications_outlined, color: AppColors.textPrimary),
           onPressed: () => context.push('/notifications'),
         ),
       ],

@@ -5,6 +5,7 @@ import { Commission } from '../models/commission.model';
 import { Settlement } from '../models/settlement.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { NotificationService } from '../services/notification.service';
 
 /**
  * Fetch Commissions with Agency / Broker filtering & Super Admin support
@@ -243,6 +244,18 @@ export const createSettlement = async (req: Request, res: Response) => {
         await comm.save();
       }
     }
+
+    // PRD Sec 17: In-App & FCM Push for Settlement Recording
+    NotificationService.createAndSendNotification({
+      userId: settlement.brokerId,
+      agencyId: settlement.agencyId,
+      title: `Payment Settlement Recorded: ${settlement.amountReceived}`,
+      message: `Settlement ${settlement.settlementCode} of ${settlement.amountReceived} recorded via ${settlement.paymentMethod}. Ref: ${settlement.referenceNumber}.`,
+      type: 'commission',
+      actionRoute: '/commissions',
+      metadata: { settlementId: settlement.id, settlementCode: settlement.settlementCode, amountReceived: settlement.amountReceived },
+      channels: ['in_app', 'push'],
+    }).catch(() => {});
 
     return successResponse(res, `Settlement ${settlement.settlementCode} recorded successfully`, settlement, 201);
   } catch (error: any) {

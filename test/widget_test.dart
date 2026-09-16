@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:propconnect/core/models/commission_model.dart';
 import 'package:propconnect/core/models/deal_model.dart';
 import 'package:propconnect/core/models/property_model.dart';
+import 'package:propconnect/features/notifications/domain/models/notification_model.dart';
 
 void main() {
   group('PropConnect PRD Core Models & Financial Rules', () {
@@ -118,6 +119,36 @@ void main() {
       expect(prop.ownerName, 'Ramesh Singhania');
       expect(prop.city, 'Mumbai');
       expect(prop.stateName, 'Maharashtra');
+    });
+
+    test('AppNotification (PRD Section 17) parses in-app and push notification metadata', () {
+      final notifJson = {
+        'id': 1,
+        'notificationCode': 'NOTIF-501',
+        'userId': 1,
+        'agencyId': 1,
+        'title': 'New Collaboration Request',
+        'message': 'Om Shivam requested to collaborate on Sea Face Villa.',
+        'type': 'collaboration',
+        'actionRoute': '/collaborations',
+        'metadata': {'requestCode': 'REQ-101', 'propertyId': 1},
+        'isRead': false,
+        'channels': 'in_app,push',
+        'createdAt': '2026-09-16T12:00:00.000Z',
+      };
+
+      final notif = AppNotification.fromJson(notifJson);
+
+      expect(notif.id, 1);
+      expect(notif.notificationCode, 'NOTIF-501');
+      expect(notif.title, 'New Collaboration Request');
+      expect(notif.type, 'collaboration');
+      expect(notif.actionRoute, '/collaborations');
+      expect(notif.isRead, false);
+      expect(notif.channels, 'in_app,push');
+
+      final updated = notif.copyWith(isRead: true);
+      expect(updated.isRead, true);
     });
   });
 }

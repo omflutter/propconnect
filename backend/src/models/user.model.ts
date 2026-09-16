@@ -13,6 +13,7 @@ export class User extends Model {
   declare public permissions: Record<string, string[]>;
   declare public agencyId: number | null;
   declare public agency?: Agency;
+  declare public fcmToken: string | null;
   declare public status: 'Active' | 'Suspended';
   declare public readonly createdAt: Date;
   declare public readonly updatedAt: Date;
@@ -67,6 +68,10 @@ User.init(
     status: {
       type: DataTypes.STRING(32),
       defaultValue: 'Active',
+    },
+    fcmToken: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
   },
   {

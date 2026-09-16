@@ -196,4 +196,52 @@ class ApiService {
       'brochureUrl': brochureUrl,
     });
   }
+
+  /// PRD Sec 17: Register Device FCM Token with PostgreSQL User Profile
+  static Future<Map<String, dynamic>> registerFcmToken({
+    required int userId,
+    required String fcmToken,
+  }) async {
+    return await post('/notifications/register-token', {
+      'userId': userId,
+      'fcmToken': fcmToken,
+    });
+  }
+
+  /// PRD Sec 17: Fetch In-App Notifications Feed
+  static Future<Map<String, dynamic>> getNotifications({
+    int? userId,
+    int? agencyId,
+    String? status,
+    String? type,
+  }) async {
+    final params = <String>[];
+    if (userId != null) params.add('userId=$userId');
+    if (agencyId != null) params.add('agencyId=$agencyId');
+    if (status != null && status.isNotEmpty && status != 'all') params.add('status=$status');
+    if (type != null && type.isNotEmpty && type != 'all') params.add('type=$type');
+    final queryString = params.isNotEmpty ? '?${params.join('&')}' : '';
+    return await get('/notifications$queryString');
+  }
+
+  /// PRD Sec 17: Mark Individual Notification as Read
+  static Future<Map<String, dynamic>> markNotificationAsRead(int notificationId) async {
+    return await put('/notifications/$notificationId/read', {});
+  }
+
+  /// PRD Sec 17: Mark All Notifications as Read
+  static Future<Map<String, dynamic>> markAllNotificationsAsRead({
+    int? userId,
+    int? agencyId,
+  }) async {
+    final body = <String, dynamic>{};
+    if (userId != null) body['userId'] = userId;
+    if (agencyId != null) body['agencyId'] = agencyId;
+    return await put('/notifications/read-all', body);
+  }
+
+  /// PRD Sec 17: Delete Notification
+  static Future<Map<String, dynamic>> deleteNotification(int notificationId) async {
+    return await delete('/notifications/$notificationId');
+  }
 }

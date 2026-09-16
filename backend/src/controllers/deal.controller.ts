@@ -6,6 +6,7 @@ import { Property } from '../models/property.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { WhatsAppService } from '../services/whatsapp.service';
+import { NotificationService } from '../services/notification.service';
 
 /**
  * Mask sensitive contact info per PRD Section 10 Lead Privacy Firewall
@@ -281,6 +282,32 @@ export const updateDealStatus = async (req: Request, res: Response) => {
         deal.dealValue,
       ],
     }).catch((err) => console.warn('[WhatsApp Deal Alert Error]', err));
+
+    // PRD Sec 17: In-App & FCM Push for Deal Stage Update
+    if (deal.brokerAId) {
+      NotificationService.createAndSendNotification({
+        userId: deal.brokerAId,
+        agencyId: deal.agencyAId,
+        title: `Deal Stage: ${newStage}`,
+        message: `Deal ${deal.dealCode} (${deal.propertyName}) progressed to "${newStage}".`,
+        type: 'deal',
+        actionRoute: `/deals/${deal.id}`,
+        metadata: { dealId: deal.id, dealCode: deal.dealCode, status: newStage },
+        channels: ['in_app', 'push'],
+      }).catch(() => {});
+    }
+    if (deal.brokerBId && deal.brokerBId !== deal.brokerAId) {
+      NotificationService.createAndSendNotification({
+        userId: deal.brokerBId,
+        agencyId: deal.agencyBId,
+        title: `Deal Stage: ${newStage}`,
+        message: `Deal ${deal.dealCode} (${deal.propertyName}) progressed to "${newStage}".`,
+        type: 'deal',
+        actionRoute: `/deals/${deal.id}`,
+        metadata: { dealId: deal.id, dealCode: deal.dealCode, status: newStage },
+        channels: ['in_app', 'push'],
+      }).catch(() => {});
+    }
 
     return successResponse(res, `Deal stage updated to "${newStage}"`, deal);
   } catch (error: any) {

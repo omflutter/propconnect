@@ -33,7 +33,6 @@ import 'package:propconnect/features/profile/presentation/screens/my_profile_scr
 import 'package:propconnect/features/properties/presentation/screens/add_edit_property_screen.dart';
 
 // Keys for StatefulShellRoute branches
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorHomeKey = GlobalKey<NavigatorState>(debugLabel: 'shellHome');
 final _shellNavigatorPropertiesKey = GlobalKey<NavigatorState>(debugLabel: 'shellProperties');
 final _shellNavigatorSearchKey = GlobalKey<NavigatorState>(debugLabel: 'shellSearch');
@@ -42,6 +41,8 @@ final _shellNavigatorCollaborationsKey = GlobalKey<NavigatorState>(debugLabel: '
 
 class AppRouter {
   AppRouter._();
+
+  static final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
   static const String splash = '/';
   static const String onboarding = '/onboarding';
@@ -78,7 +79,7 @@ class AppRouter {
   static const String support = '/support';
 
   static final router = GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: splash,
     routes: [
       GoRoute(

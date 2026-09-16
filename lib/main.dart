@@ -10,6 +10,7 @@ import 'package:propconnect/core/routing/app_router.dart';
 import 'package:propconnect/core/constants/app_strings.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/services/user_presence_service.dart';
+import 'package:propconnect/core/services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,9 @@ void main() async {
 
   // Track real-time presence (Online / Offline)
   UserPresenceService().init();
+
+  // PRD Sec 17: Initialize Push Notifications & FCM Device Permissions
+  PushNotificationService().initialize();
 
   // DevicePreview is only enabled for Web development preview, disabled on mobile devices (Android / iOS)
   final bool enableDevicePreview = kIsWeb && !kReleaseMode;

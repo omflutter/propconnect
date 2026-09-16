@@ -8,6 +8,7 @@ import { Property } from '../models/property.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { WhatsAppService } from '../services/whatsapp.service';
+import { NotificationService } from '../services/notification.service';
 
 /**
  * Submit a Collaboration Request (Broker B requests collaboration on Broker A's Property)
@@ -92,6 +93,18 @@ export const createCollaboration = async (req: Request, res: Response) => {
       ],
     }).catch((err) => console.warn('[WhatsApp Collab Error]', err));
 
+    // PRD Sec 17: In-App Alert & FCM Push to Target Broker
+    NotificationService.createAndSendNotification({
+      userId: targetBrokerId || 1,
+      agencyId: targetAgencyId || 1,
+      title: 'New Collaboration Request',
+      message: `${callerUserName} from ${callerAgencyName} requested to collaborate on ${newRequest.propertyName}.`,
+      type: 'collaboration',
+      actionRoute: '/collaborations',
+      metadata: { requestCode: newRequest.requestCode, propertyId: newRequest.propertyId },
+      channels: ['in_app', 'push'],
+    }).catch(() => {});
+
     return successResponse(res, `Collaboration request ${newRequest.requestCode} submitted`, newRequest, 201);
   } catch (error: any) {
     return errorResponse(res, 'Failed to create collaboration request', error.message || error);
@@ -174,6 +187,18 @@ export const respondCollaboration = async (req: Request, res: Response) => {
           collabReq.propertyName,
           remarks || 'Not available',
         ],
+      }).catch(() => {});
+
+      // PRD Sec 17: In-App & FCM Push notification to requesting broker
+      NotificationService.createAndSendNotification({
+        userId: collabReq.requestingBrokerId,
+        agencyId: collabReq.requestingAgencyId,
+        title: 'Collaboration Request Declined',
+        message: `Your request for ${collabReq.propertyName} was declined: ${remarks || 'No reason provided'}.`,
+        type: 'collaboration',
+        actionRoute: '/collaborations',
+        metadata: { requestCode: collabReq.requestCode, propertyId: collabReq.propertyId, status: 'Rejected' },
+        channels: ['in_app', 'push'],
       }).catch(() => {});
 
       return successResponse(res, `Collaboration request ${collabReq.requestCode} rejected`, collabReq);
@@ -276,6 +301,18 @@ export const respondCollaboration = async (req: Request, res: Response) => {
           deal.dealCode,
         ],
       }).catch((err) => console.warn('[WhatsApp Collab Approval Error]', err));
+
+      // PRD Sec 17: In-App & FCM Push to requesting broker
+      NotificationService.createAndSendNotification({
+        userId: collabReq.requestingBrokerId,
+        agencyId: collabReq.requestingAgencyId,
+        title: 'Collaboration Request Approved! 🎉',
+        message: `Your request for ${collabReq.propertyName} was approved! Deal ${deal.dealCode} has been created.`,
+        type: 'collaboration',
+        actionRoute: '/deals',
+        metadata: { requestCode: collabReq.requestCode, dealId: deal.id, dealCode: deal.dealCode, propertyId: collabReq.propertyId },
+        channels: ['in_app', 'push'],
+      }).catch(() => {});
 
       return successResponse(
         res,

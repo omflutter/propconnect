@@ -9,6 +9,7 @@ import { CollaborationRequest } from '../models/collaboration.model';
 import { Commission } from '../models/commission.model';
 import { Settlement } from '../models/settlement.model';
 import { WhatsAppLog } from '../models/whatsappLog.model';
+import { Notification } from '../models/notification.model';
 
 export const seedInitialData = async () => {
   try {
@@ -138,6 +139,67 @@ export const seedInitialData = async () => {
         },
       ]);
       console.log('[Seed] Default WhatsApp Logs initialized.');
+    }
+
+    const notifCount = await Notification.count();
+    if (notifCount === 0) {
+      await Notification.bulkCreate([
+        {
+          notificationCode: 'NTF-101',
+          userId: 1, // Om Shivam (Agency Admin / Super Admin)
+          agencyId: 1,
+          title: 'Collaboration Request Approved!',
+          message: 'Rahul Singh approved your collaboration request for Sea Face Villa (Bandra West).',
+          type: 'collaboration',
+          actionRoute: '/deals/1',
+          metadata: { dealCode: 'DL-501', propertyId: 1 },
+          isRead: false,
+          channels: 'in_app,push,whatsapp',
+          createdAt: new Date(Date.now() - 1000 * 60 * 12),
+        },
+        {
+          notificationCode: 'NTF-102',
+          userId: 1,
+          agencyId: 1,
+          title: 'New Collaboration Request Received',
+          message: 'Vikram Malhotra requested to co-broke on Sea Face Villa with an expected budget of ₹4.5 Cr.',
+          type: 'collaboration',
+          actionRoute: '/collaborations',
+          metadata: { requestCode: 'REQ-101', propertyId: 1 },
+          isRead: false,
+          channels: 'in_app,push,whatsapp',
+          createdAt: new Date(Date.now() - 1000 * 60 * 45),
+        },
+        {
+          notificationCode: 'NTF-103',
+          userId: 1,
+          agencyId: 1,
+          title: 'Deal Advanced: Token Generated',
+          message: 'DL-501 has moved to "Token Done". Property status synchronized automatically.',
+          type: 'deal',
+          actionRoute: '/deals/1',
+          metadata: { dealCode: 'DL-501', stage: 'Token Done' },
+          isRead: true,
+          readAt: new Date(Date.now() - 1000 * 60 * 60),
+          channels: 'in_app,push',
+          createdAt: new Date(Date.now() - 1000 * 60 * 120),
+        },
+        {
+          notificationCode: 'NTF-104',
+          userId: 1,
+          agencyId: 1,
+          title: 'Commission Payout Recorded',
+          message: 'Settlement of ₹1,00,000 recorded via NEFT (Ref: NEFT892189410).',
+          type: 'commission',
+          actionRoute: '/commissions',
+          metadata: { settlementCode: 'SETTL-901', amount: '₹1,00,000' },
+          isRead: true,
+          readAt: new Date(Date.now() - 1000 * 60 * 180),
+          channels: 'in_app,push',
+          createdAt: new Date(Date.now() - 1000 * 60 * 240),
+        },
+      ]);
+      console.log('[Seed] Default in-app notifications initialized.');
     }
     const configCount = await PlatformConfig.count();
     if (configCount === 0) {

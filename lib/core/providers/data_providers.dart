@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/property_model.dart';
 import '../models/deal_model.dart';
@@ -5,6 +6,7 @@ import '../models/commission_model.dart';
 import '../network/api_service.dart';
 import '../services/firestore_chat_service.dart';
 import '../services/auth_storage_service.dart';
+import '../services/push_notification_service.dart';
 
 class PropertiesLoadingNotifier extends Notifier<bool> {
   @override
@@ -494,5 +496,51 @@ class UnreadMessagesNotifier extends Notifier<int> {
 final unreadMessagesProvider = NotifierProvider<UnreadMessagesNotifier, int>(() {
   return UnreadMessagesNotifier();
 });
+
+class UnreadNotificationsNotifier extends Notifier<int> {
+  StreamSubscription? _fcmSubscription;
+
+  @override
+  int build() {
+    _fcmSubscription = PushNotificationService.onMessageReceivedStream.stream.listen((_) {
+      fetchUnreadCount();
+    });
+    ref.onDispose(() {
+      _fcmSubscription?.cancel();
+    });
+    fetchUnreadCount();
+    return 0;
+  }
+
+  Future<void> fetchUnreadCount() async {
+    try {
+      final userData = AuthStorageService.getUserData();
+      final rawId = userData?['id'];
+      final userId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+      final rawAgencyId = userData?['agencyId'] ?? userData?['agency']?['id'];
+      final agencyId = rawAgencyId is int ? rawAgencyId : int.tryParse(rawAgencyId?.toString() ?? '');
+
+      final res = await ApiService.getNotifications(
+        userId: userId,
+        agencyId: agencyId,
+        status: 'unread',
+      );
+
+      if (res['success'] == true) {
+        final count = (res['unreadCount'] as num? ?? res['count'] as num? ?? 0).toInt();
+        state = count;
+      }
+    } catch (_) {}
+  }
+
+  void updateCount(int newCount) {
+    state = newCount;
+  }
+}
+
+final unreadNotificationsProvider = NotifierProvider<UnreadNotificationsNotifier, int>(() {
+  return UnreadNotificationsNotifier();
+});
+
 
 

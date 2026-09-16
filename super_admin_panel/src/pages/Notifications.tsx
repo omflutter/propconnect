@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Search, Bell, Send, CheckCircle, Smartphone, Mail, Globe, Users, Zap, Settings, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
+import { apiFetch } from '../services/api';
 import './GlobalData.css';
 
 export function Notifications() {
@@ -47,27 +48,42 @@ export function Notifications() {
     toast.success(`Event trigger rule "${updated[index].event}" updated`);
   };
 
-  const handleSendBroadcast = () => {
+  const handleSendBroadcast = async () => {
     if (!broadcastTitle || !broadcastMessage) {
       toast.error('Please enter title and message content');
       return;
     }
-    setHistory([
-      {
-        id: `NOTIF-${Math.floor(500 + Math.random() * 500)}`,
-        title: broadcastTitle,
-        targetGroup: 'All Registered Agencies',
-        channels: 'In-App + Push + WhatsApp',
-        sentCount: '1,402 Users',
-        date: '2026-08-01 13:50',
-        status: 'Sent'
-      },
-      ...history
-    ]);
-    toast.success('System Broadcast Notification dispatched successfully!');
-    setShowBroadcastModal(false);
-    setBroadcastTitle('');
-    setBroadcastMessage('');
+    try {
+      const res = await apiFetch('/notifications/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: broadcastTitle,
+          message: broadcastMessage,
+          targetGroup: 'all',
+        }),
+      });
+      const dispatched = res?.data?.dispatchedCount || 1;
+      const fcmCount = res?.data?.fcmSent || 0;
+
+      setHistory([
+        {
+          id: `NOTIF-${Math.floor(500 + Math.random() * 500)}`,
+          title: broadcastTitle,
+          targetGroup: 'All Registered Agencies & Brokers',
+          channels: 'In-App + Push',
+          sentCount: `${dispatched} Users (${fcmCount} FCM Push)`,
+          date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          status: 'Sent'
+        },
+        ...history
+      ]);
+      toast.success(`System Broadcast dispatched to ${dispatched} users (${fcmCount} Push)!`);
+      setShowBroadcastModal(false);
+      setBroadcastTitle('');
+      setBroadcastMessage('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to dispatch broadcast');
+    }
   };
 
   return (

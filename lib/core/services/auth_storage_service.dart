@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:propconnect/core/network/api_service.dart';
 import 'package:propconnect/core/providers/user_role_provider.dart';
 import 'package:propconnect/core/models/property_model.dart';
+import 'package:propconnect/core/services/push_notification_service.dart';
 
 class AuthStorageService {
   static const String _keyIsLoggedIn = 'is_logged_in';
@@ -45,6 +46,9 @@ class AuthStorageService {
     
     // Set token in ApiService
     ApiService.setAuthToken(token);
+
+    // Sync device FCM token with backend
+    PushNotificationService().syncTokenWithBackend();
   }
 
   /// Check if user has an active logged-in session
