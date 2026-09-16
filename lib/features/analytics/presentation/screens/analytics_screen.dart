@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
+import 'package:propconnect/core/services/auth_storage_service.dart';
 
 class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
@@ -14,11 +15,18 @@ class AnalyticsScreen extends ConsumerWidget {
     final allDeals = ref.watch(dealProvider);
     final analytics = ref.watch(analyticsProvider);
 
-    // Filter to Current Agency (Mocked as 'Sunrise Properties')
-    const currentAgency = 'Sunrise Properties';
+    // Filter to Current Agency
+    final userData = AuthStorageService.getUserData();
+    final userAgencyMap = userData?['agency'] as Map<String, dynamic>?;
+    final userAgencyId = userData?['agencyId'] ?? userAgencyMap?['id'];
+    final currentAgency = (userAgencyMap?['name'] as String?) ?? (userData?['agencyName'] as String?) ?? '';
     
     // 1. Calculate Property Metrics for Agency
-    final agencyProperties = allProperties.where((p) => p.agencyName == currentAgency).toList();
+    final agencyProperties = allProperties.where((p) {
+      if (userAgencyId != null && p.agencyId != null && p.agencyId.toString() == userAgencyId.toString()) return true;
+      if (currentAgency.isNotEmpty && p.agencyName.toLowerCase().trim() == currentAgency.toLowerCase().trim()) return true;
+      return false;
+    }).toList();
     final agencyPropertyIds = agencyProperties.map((p) => p.id).toSet();
     
     final activeProperties = agencyProperties.where((p) => p.status == 'Available').length;

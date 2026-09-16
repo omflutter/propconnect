@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:propconnect/features/splash/presentation/screens/splash_screen.dart';
 import 'package:propconnect/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:propconnect/features/auth/presentation/screens/login_screen.dart';
+import 'package:propconnect/features/auth/presentation/screens/register_screen.dart';
 import 'package:propconnect/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:propconnect/features/dashboard/presentation/screens/main_dashboard_screen.dart';
 import 'package:propconnect/features/home/presentation/screens/home_screen.dart';
@@ -18,6 +19,7 @@ import 'package:propconnect/features/crm/presentation/screens/leads_screen.dart'
 import 'package:propconnect/features/analytics/presentation/screens/analytics_screen.dart';
 import 'package:propconnect/features/agency/presentation/screens/agency_management_screen.dart';
 import 'package:propconnect/features/agency/presentation/screens/broker_details_screen.dart';
+import 'package:propconnect/features/agency/presentation/screens/create_agency_screen.dart';
 import 'package:propconnect/features/properties/presentation/screens/property_details_screen.dart';
 import 'package:propconnect/features/collaborations/presentation/screens/collaborations_screen.dart';
 import 'package:propconnect/features/collaborations/presentation/screens/collaboration_details_screen.dart';
@@ -44,6 +46,7 @@ class AppRouter {
   static const String splash = '/';
   static const String onboarding = '/onboarding';
   static const String login = '/login';
+  static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
   
   // Dashboard routes
@@ -60,6 +63,7 @@ class AppRouter {
   static const String leads = '/leads';
   static const String analytics = '/analytics';
   static const String agencyManagement = '/agency-management';
+  static const String createAgency = '/create-agency';
   static const String subscription = '/subscription';
   static const String profile = '/profile';
   static const String brokerDetails = '/broker-details/:id';
@@ -90,6 +94,10 @@ class AppRouter {
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
+        path: register,
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
         path: forgotPassword,
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
@@ -116,6 +124,10 @@ class AppRouter {
       GoRoute(
         path: agencyManagement,
         builder: (context, state) => const AgencyManagementScreen(),
+      ),
+      GoRoute(
+        path: createAgency,
+        builder: (context, state) => const CreateAgencyScreen(),
       ),
       GoRoute(
         path: subscription,
@@ -145,7 +157,13 @@ class AppRouter {
         path: chatDetails,
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return ChatDetailsScreen(chatId: id);
+          final extra = state.extra as Map<String, dynamic>?;
+          return ChatDetailsScreen(
+            chatId: id,
+            partnerName: extra?['partnerName'] as String? ?? state.uri.queryParameters['partnerName'],
+            partnerId: extra?['partnerId'] as String? ?? state.uri.queryParameters['partnerId'],
+            agencyName: extra?['agencyName'] as String? ?? state.uri.queryParameters['agencyName'],
+          );
         },
       ),
       GoRoute(

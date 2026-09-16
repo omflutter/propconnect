@@ -1,0 +1,70 @@
+{
+  "hosting": {
+    "public": "super_admin_panel/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": "api"
+      },
+      {
+        "source": "/api-docs**",
+        "function": "api"
+      },
+      {
+        "source": "/api-docs/**",
+        "function": "api"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "functions": {
+    "source": "backend",
+    "codebase": "default",
+    "runtime": "nodejs20",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "propconnect-b89bd",
+          "appId": "1:779781321483:android:9ba82678581281aec8680e",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "propconnect-b89bd",
+          "appId": "1:779781321483:ios:dcf5180dd1a99985c8680e",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "propconnect-b89bd",
+          "configurations": {
+            "android": "1:779781321483:android:9ba82678581281aec8680e",
+            "ios": "1:779781321483:ios:dcf5180dd1a99985c8680e"
+          }
+        }
+      }
+    }
+  }
+}

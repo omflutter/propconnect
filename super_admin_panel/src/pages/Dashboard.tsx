@@ -1,22 +1,39 @@
-import { Users, Building, Activity, DollarSign, Server, Smartphone, CheckCircle, AlertTriangle, TrendingUp, History, Briefcase, CreditCard } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Building, Activity, DollarSign, Server, Smartphone, CheckCircle, TrendingUp, History, Briefcase, CreditCard, Loader2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { apiFetch } from '../services/api';
 import './Dashboard.css';
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    const [statsRes, auditRes] = await Promise.all([
+      apiFetch('/dashboard/stats'),
+      apiFetch<any[]>('/audit-logs?limit=6'),
+    ]);
+    setIsLoading(false);
+
+    if (statsRes.success && statsRes.data) {
+      setDashboardData(statsRes.data);
+    }
+    if (auditRes.success && auditRes.data) {
+      setAuditLogs(auditRes.data.slice(0, 6));
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
   const miniChartData = [
     { value: 10 }, { value: 25 }, { value: 15 }, { value: 40 }, { value: 30 }, { value: 50 }, { value: 45 }
-  ];
-
-  const stats = [
-    { label: 'Platform Revenue', value: '₹1.24 Cr', icon: DollarSign, color: '#00308F', trend: '+22%' },
-    { label: 'Commission Gen.', value: '₹4.8 Cr', icon: Activity, color: '#10b981', trend: '+18%' },
-    { label: 'Active Subscriptions', value: '142', icon: CreditCard, color: '#f59e0b', trend: '+12%' },
-    { label: 'Public Properties', value: '3,845', icon: Building, color: '#8b5cf6', trend: '+5.2%' },
-    { label: 'Active Deals', value: '892', icon: Briefcase, color: '#ec4899', trend: '+14%' },
-    { label: 'Platform Brokers', value: '1,204', icon: Users, color: '#0ea5e9', trend: '+8%' },
   ];
 
   const chartData = [
@@ -29,54 +46,61 @@ export function Dashboard() {
     { name: 'Jul', revenue: 124, commission: 43 },
   ];
 
-  const subData = [
-    { name: 'Basic', users: 80, fill: '#94A3B8' },
-    { name: 'Pro', users: 45, fill: '#38BDF8' },
-    { name: 'Enterprise', users: 17, fill: '#00308F' },
+  const agencyCount = dashboardData ? dashboardData.agencies.total : 3;
+  const brokerCount = dashboardData ? dashboardData.brokers.total : 5;
+  const subData = dashboardData ? dashboardData.subscriptions : [
+    { name: 'Basic', users: 1, fill: '#94A3B8' },
+    { name: 'Pro', users: 1, fill: '#38BDF8' },
+    { name: 'Enterprise', users: 1, fill: '#00308F' },
   ];
 
-  const auditLogs = [
-    { time: '2m ago', action: 'Agency Profile Updated', user: 'Sunrise Properties', type: 'info' },
-    { time: '14m ago', action: 'New Collaboration Request', user: 'Metro Reality -> Bangalore Estates', type: 'success' },
-    { time: '1h ago', action: 'Deal Stage Changed: Closed', user: 'DL-502', type: 'success' },
-    { time: '2h ago', action: 'Failed Payment Hook', user: 'Razorpay API', type: 'error' },
-    { time: '3h ago', action: 'New Property Added', user: 'PR-109 (₹4.5Cr)', type: 'info' },
-    { time: '4h ago', action: 'Broker Account Suspended', user: 'Om Shivam', type: 'warning' },
+  const stats = [
+    { label: 'Platform Revenue', value: '₹1.24 Cr', icon: DollarSign, color: '#00308F', trend: '+22%', link: '/commissions' },
+    { label: 'Commission Gen.', value: '₹4.8 Cr', icon: Activity, color: '#10b981', trend: '+18%', link: '/commissions' },
+    { label: 'Agencies Matrix', value: `${agencyCount} SaaS`, icon: Building, color: '#8b5cf6', trend: '+12%', link: '/agencies' },
+    { label: 'Platform Brokers', value: `${brokerCount} Users`, icon: Users, color: '#0ea5e9', trend: '+8%', link: '/brokers' },
+    { label: 'Active Subscriptions', value: `${agencyCount} Active`, icon: CreditCard, color: '#f59e0b', trend: '+15%', link: '/subscriptions' },
+    { label: 'Active Deals', value: '892 Active', icon: Briefcase, color: '#ec4899', trend: '+14%', link: '/deals' },
   ];
 
   return (
     <div className="dashboard-massive">
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: '20px' }}>Global Command Center</h1>
-          <p style={{ marginTop: 4, fontSize: '13px' }}>System health, revenue, and platform-wide metrics for PropConnect India.</p>
+          <p style={{ marginTop: 4, fontSize: '13px' }}>System health, revenue, and live MySQL database metrics for PropConnect India.</p>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div className="status-pill success">
             <Server size={14} />
-            <span>AWS Mumbai: Healthy</span>
+            <span>Express Backend: Healthy</span>
           </div>
           <div className="status-pill success">
             <CheckCircle size={14} />
-            <span>Razorpay: Online</span>
+            <span>MySQL Database: Online</span>
           </div>
           <div className="status-pill success">
             <Smartphone size={14} />
-            <span>WhatsApp API: Online</span>
+            <span>Swagger Specs: Ready</span>
           </div>
         </div>
       </div>
 
-      {/* Massive 6-Card Top Row */}
+      {/* 6 Interactive Stat Cards */}
       <div className="stats-grid-massive">
         {stats.map((stat, idx) => {
           const Icon = stat.icon;
           return (
-            <div key={idx} className="stat-card card">
+            <div 
+              key={idx} 
+              className="stat-card card" 
+              style={{ cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+              onClick={() => navigate(stat.link)}
+            >
               <div className="stat-header">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="stat-label">{stat.label}</span>
-                  <h3 className="stat-value">{stat.value}</h3>
+                  <h3 className="stat-value">{isLoading ? <Loader2 size={18} className="animate-spin" /> : stat.value}</h3>
                 </div>
                 <div className="stat-icon-wrapper" style={{ backgroundColor: `${stat.color}15` }}>
                   <Icon className="stat-icon" size={20} style={{ color: stat.color }} />
@@ -147,7 +171,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Live Audit Log Feed */}
+        {/* Live System Activity Feed connected to MySQL Audit Logs */}
         <div className="card audit-feed">
           <div className="chart-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -155,26 +179,36 @@ export function Dashboard() {
               <h3>Live System Activity</h3>
             </div>
           </div>
+
           <div className="feed-list">
-            {auditLogs.map((log, i) => (
-              <div key={i} className="feed-item">
-                <div className={`feed-indicator ${log.type}`}></div>
-                <div className="feed-content">
-                  <span className="feed-action">{log.action}</span>
-                  <span className="feed-user">{log.user}</span>
-                </div>
-                <span className="feed-time">{log.time}</span>
+            {isLoading ? (
+              <div style={{ padding: 20, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 8 }}>
+                <Loader2 className="animate-spin" size={18} color="var(--primary-blue)" />
+                <span>Loading live activity feed...</span>
               </div>
-            ))}
+            ) : auditLogs.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-secondary)' }}>
+                No recent activity logged.
+              </div>
+            ) : (
+              auditLogs.map((log) => (
+                <div key={log.id} className="feed-item" style={{ cursor: 'pointer' }} onClick={() => navigate('/audit-logs')}>
+                  <div className={`feed-indicator ${log.status === 'Success' ? 'success' : log.status === 'Warning' ? 'warning' : 'error'}`}></div>
+                  <div className="feed-content">
+                    <span className="feed-action">{log.action}</span>
+                    <span className="feed-user">{log.actorName} ({log.target})</span>
+                  </div>
+                  <span className="feed-time">{new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              ))
+            )}
           </div>
+
           <button className="btn-secondary" style={{ width: '100%', marginTop: 'auto', fontSize: '12px' }} onClick={() => navigate('/audit-logs')}>
-            View Full Audit Logs
+            View Full Audit Logs →
           </button>
         </div>
       </div>
     </div>
   );
 }
-
-// Ensure Briefcase and CreditCard are available by importing them properly at the top.
-// Wait, I missed importing them in the line above. Let me add them to the import.

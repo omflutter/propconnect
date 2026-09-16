@@ -6,6 +6,7 @@ import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/models/deal_model.dart';
 import 'package:propconnect/core/models/property_model.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
+import 'package:propconnect/core/services/auth_storage_service.dart';
 
 class AddDealScreen extends ConsumerStatefulWidget {
   const AddDealScreen({super.key});
@@ -67,10 +68,18 @@ class _AddDealScreenState extends ConsumerState<AddDealScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userData = AuthStorageService.getUserData();
+    final userAgencyMap = userData?['agency'] as Map<String, dynamic>?;
+    final userAgencyId = userData?['agencyId'] ?? userAgencyMap?['id'];
+    final userAgency = (userAgencyMap?['name'] as String?) ?? (userData?['agencyName'] as String?) ?? '';
+
     // Only show available properties that the agency owns
-    final properties = ref.watch(propertyProvider)
-        .where((p) => p.status == 'Available' && p.agencyName == 'Sunrise Properties')
-        .toList();
+    final properties = ref.watch(propertyProvider).where((p) {
+      if (p.status != 'Available') return false;
+      if (userAgencyId != null && p.agencyId != null && p.agencyId.toString() == userAgencyId.toString()) return true;
+      if (userAgency.isNotEmpty && p.agencyName.toLowerCase().trim() == userAgency.toLowerCase().trim()) return true;
+      return false;
+    }).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,

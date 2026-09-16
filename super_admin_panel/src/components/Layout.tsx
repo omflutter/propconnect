@@ -3,9 +3,10 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { 
   LayoutDashboard, Building2, Settings, LogOut, Briefcase, Users, Ticket, 
-  Search, Bell, FileText, CreditCard, Banknote, ShieldAlert, MessageCircle,
-  MessageSquare, Network, Activity, Smartphone, Link, DollarSign, Wallet, Check, AlertCircle
+  Search, Bell, CreditCard, Banknote, MessageCircle,
+  MessageSquare, Network, Activity, Smartphone, Link, Wallet, Rocket
 } from 'lucide-react';
+import { ConfirmModal } from './ConfirmModal';
 import './Layout.css';
 
 interface LayoutProps {
@@ -18,6 +19,7 @@ export function Layout({ children }: LayoutProps) {
 
   const [showNotifs, setShowNotifs] = useState(false);
   const [unreadCount, setUnreadCount] = useState(3);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const [topNotifs, setTopNotifs] = useState([
@@ -37,10 +39,11 @@ export function Layout({ children }: LayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
+  const handleConfirmLogout = () => {
     localStorage.removeItem('isAuthenticated');
     localStorage.removeItem('userEmail');
     toast.success('Logged out of Super Admin Panel');
+    setShowLogoutModal(false);
     navigate('/login');
   };
 
@@ -172,7 +175,7 @@ export function Layout({ children }: LayoutProps) {
             <span className="user-name">Om Shivam</span>
             <span className="user-role">Super Admin</span>
           </div>
-          <button className="logout-btn" onClick={handleLogout} title="Sign Out">
+          <button className="logout-btn" onClick={() => setShowLogoutModal(true)} title="Sign Out">
             <LogOut size={18} />
           </button>
         </div>
@@ -253,6 +256,18 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Global ConfirmModal for Logout */}
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        title="Sign Out of Super Admin Panel"
+        message="Are you sure you want to log out of your Super Admin account? Any unsaved changes in active forms will be lost."
+        type="warning"
+        confirmText="Sign Out"
+        cancelText="Stay Logged In"
+        onConfirm={handleConfirmLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </div>
   );
 }

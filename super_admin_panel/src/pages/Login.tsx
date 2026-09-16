@@ -1,32 +1,45 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Building2, Lock, Mail, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { apiFetch } from '../services/api';
 import './Login.css';
 
 export function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('om@propconnect.in');
-  const [password, setPassword] = useState('••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       toast.error('Please enter email and password');
       return;
     }
-    localStorage.setItem('isAuthenticated', 'true');
-    localStorage.setItem('userEmail', email);
-    toast.success('Authenticated as Platform Super Admin!');
-    navigate('/');
-  };
 
-  const handleDemoAccess = () => {
-    localStorage.setItem('isAuthenticated', 'true');
-    localStorage.setItem('userEmail', 'om@propconnect.in');
-    toast.success('Logged in via Quick Super Admin Access!');
-    navigate('/');
+    setIsLoading(true);
+    setLoginError(null);
+    const res = await apiFetch('/auth/admin-login', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+    });
+    setIsLoading(false);
+
+    if (res.success && res.data) {
+      localStorage.setItem('isAuthenticated', 'true');
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      localStorage.setItem('userEmail', res.data.user.email);
+      toast.success(`Welcome back, ${res.data.user.name}!`);
+      navigate('/');
+    } else {
+      console.error('[Admin Login Diagnostics]', res);
+      setLoginError(res.message);
+      toast.error(res.message || 'Authentication failed', { duration: 7000 });
+    }
   };
 
   return (
@@ -40,6 +53,16 @@ export function Login() {
           <p>SaaS Super Admin & Operations Portal</p>
         </div>
 
+        {loginError && (
+          <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', padding: '12px 14px', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '16px' }}>
+            <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <strong>Login Error Diagnostic:</strong>
+              <div style={{ marginTop: 2, fontFamily: 'monospace', fontSize: 12 }}>{loginError}</div>
+            </div>
+          </div>
+        )}
+
         <form className="login-form" onSubmit={handleLogin}>
           <div className="form-group">
             <label>Admin Email Address</label>
@@ -49,7 +72,7 @@ export function Login() {
                 className="form-input" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@propconnect.in"
+                placeholder="Enter admin email address..."
                 required
                 style={{ paddingLeft: '38px', width: '100%' }}
               />
@@ -90,27 +113,15 @@ export function Login() {
             </span>
           </div>
 
-          <button type="submit" className="btn-primary" style={{ width: '100%', padding: '12px', fontSize: '14px', marginTop: '8px' }}>
-            Sign In to Super Admin <ArrowRight size={16} />
+          <button 
+            type="submit" 
+            className="btn-primary" 
+            disabled={isLoading}
+            style={{ width: '100%', padding: '12px', fontSize: '14px', marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+          >
+            {isLoading ? <Loader2 size={16} className="animate-spin" /> : <>Sign In to Super Admin <ArrowRight size={16} /></>}
           </button>
         </form>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
-            <div style={{ flex: 1, height: 1, backgroundColor: 'var(--border)' }}></div>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>OR</span>
-            <div style={{ flex: 1, height: 1, backgroundColor: 'var(--border)' }}></div>
-          </div>
-
-          <button 
-            type="button" 
-            className="btn-secondary" 
-            style={{ width: '100%', padding: '10px', fontSize: '13px' }}
-            onClick={handleDemoAccess}
-          >
-            <ShieldCheck size={16} color="var(--primary-blue)" /> Quick Super Admin Demo Login
-          </button>
-        </div>
 
         <div className="login-footer">
           PropConnect SaaS Platform v2.4 (Phase 1 PRD Standard) • ISO 27001 Secured

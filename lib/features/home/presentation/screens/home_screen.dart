@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/providers/user_role_provider.dart';
+import 'package:propconnect/core/services/auth_storage_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -15,9 +16,23 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  String _selectedAgency = 'Sunrise Properties';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final props = ref.read(propertyProvider);
+      if (props.isEmpty) {
+        ref.read(propertyProvider.notifier).fetchProperties();
+      }
+      ref.read(unreadMessagesProvider.notifier).fetchUnreadCount();
+    });
+  }
 
   void _showAgencyPicker() {
+    final userData = AuthStorageService.getUserData();
+    final userAgencyName = (userData?['agency']?['name'] as String?) ?? (userData?['agencyName'] as String?) ?? 'Primary Agency';
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
@@ -28,26 +43,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               const Padding(
                 padding: EdgeInsets.all(16.0),
-                child: Text('Select Agency', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                child: Text('My Active Agency', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
               ListTile(
-                leading: const Icon(Icons.business),
-                title: const Text('Sunrise Properties'),
-                trailing: _selectedAgency == 'Sunrise Properties' ? const Icon(Icons.check, color: AppColors.primaryBlue) : null,
-                onTap: () {
-                  setState(() => _selectedAgency = 'Sunrise Properties');
-                  Navigator.pop(context);
-                },
+                leading: const Icon(Icons.business, color: AppColors.primaryBlue),
+                title: Text(userAgencyName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Primary Verified Agency Account', style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.check_circle, color: AppColors.primaryBlue),
+                onTap: () => Navigator.pop(context),
               ),
-              ListTile(
-                leading: const Icon(Icons.business_center),
-                title: const Text('Global Real Estate'),
-                trailing: _selectedAgency == 'Global Real Estate' ? const Icon(Icons.check, color: AppColors.primaryBlue) : null,
-                onTap: () {
-                  setState(() => _selectedAgency = 'Global Real Estate');
-                  Navigator.pop(context);
-                },
-              ),
+              const Gap(16),
             ],
           ),
         );
@@ -64,8 +69,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: AppColors.background,
       drawer: _buildDrawer(context, userRole),
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await Future.wait([
+              ref.read(propertyProvider.notifier).fetchProperties(),
+              ref.read(unreadMessagesProvider.notifier).fetchUnreadCount(),
+            ]);
+          },
+          color: AppColors.primaryBlue,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
             _buildAppBar(context),
             SliverToBoxAdapter(child: const Gap(16)),
             _buildHeader(context, userRole),
@@ -88,10 +102,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   SliverAppBar _buildAppBar(BuildContext context) {
+    final unreadMessagesCount = ref.watch(unreadMessagesProvider);
+
     return SliverAppBar(
       pinned: true,
       backgroundColor: AppColors.surface,
@@ -117,17 +134,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       actions: [
         IconButton(
-          icon: const Badge(
-            label: Text('5'),
-            child: Icon(Icons.chat_bubble_outline, color: AppColors.textPrimary),
-          ),
+          icon: unreadMessagesCount > 0
+              ? Badge(
+                  label: Text('$unreadMessagesCount'),
+                  child: const Icon(Icons.chat_outlined, color: AppColors.textPrimary),
+                )
+              : const Icon(Icons.chat_outlined, color: AppColors.textPrimary),
           onPressed: () => context.push('/chat'),
         ),
         IconButton(
-          icon: const Badge(
-            label: Text('12'),
-            child: Icon(Icons.notifications_outlined, color: AppColors.textPrimary),
-          ),
+          icon: const Icon(Icons.notifications_outlined, color: AppColors.textPrimary),
           onPressed: () => context.push('/notifications'),
         ),
       ],
@@ -135,6 +151,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildHeader(BuildContext context, UserRole role) {
+    final userData = AuthStorageService.getUserData();
+    final userName = (userData?['name'] as String?) ?? 'User';
+    final rawRole = (userData?['role'] as String?) ?? '';
+    final userAgencyName = (userData?['agency']?['name'] as String?) ?? (userData?['agencyName'] as String?) ?? 'My Agency';
+    final roleTitle = (userData?['adminRoleTitle'] as String?) ??
+        (rawRole == 'super_admin'
+            ? 'Super Admin (Full Access)'
+            : (role == UserRole.agencyAdmin ? 'Agency Admin' : 'Broker / Agent'));
+
+    final userInitials = userName.trim().isNotEmpty
+        ? userName
+            .trim()
+            .split(' ')
+            .where((w) => w.isNotEmpty)
+            .map((w) => w[0])
+            .take(2)
+            .join('')
+            .toUpperCase()
+        : 'U';
+
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -143,7 +179,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             CircleAvatar(
               radius: 28,
               backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.8),
-              child: const Text('AV', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              child: Text(userInitials, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             const Gap(12),
             Expanded(
@@ -151,9 +187,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Good Morning,', style: Theme.of(context).textTheme.bodyMedium),
-                  Text('Amit Verma', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  Text(userName, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                   Text(
-                    role == UserRole.agencyAdmin ? 'Agency Admin' : 'Broker / Agent', 
+                    roleTitle, 
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.primaryBlue)
                   ),
                 ],
@@ -174,7 +210,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const Icon(Icons.business_outlined, size: 16, color: AppColors.textPrimary),
                       const Gap(8),
                       Text(
-                        _selectedAgency.length > 15 ? '${_selectedAgency.substring(0, 12)}...' : _selectedAgency, 
+                        userAgencyName.length > 15 ? '${userAgencyName.substring(0, 12)}...' : userAgencyName, 
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)
                       ),
                       const Gap(4),
@@ -235,35 +271,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildMetricsGrid(BuildContext context, WidgetRef ref, UserRole role) {
     final properties = ref.watch(propertyProvider);
+    final isPropertiesLoading = ref.watch(isPropertiesLoadingProvider);
     final deals = ref.watch(dealProvider);
     
-    // Calculate values based on role
-    int myPropertiesCount = 0;
-    int publicPropertiesCount = properties.where((p) => p.isPublic).length;
+    // Calculate real values based on backend data
+    final String propertiesDisplay = (isPropertiesLoading && properties.isEmpty) ? '...' : properties.length.toString();
+    final String publicPropertiesDisplay = (isPropertiesLoading && properties.isEmpty) ? '...' : properties.where((p) => p.isPublic).length.toString();
     int requestsCount = deals.where((d) => d.isRequest).length;
     int activeDealsCount = deals.where((d) => !d.isRequest).length;
 
     List<Map<String, dynamic>> metrics = [];
 
     if (role == UserRole.agencyAdmin) {
-      myPropertiesCount = properties.where((p) => p.agencyName == 'Sunrise Properties').length;
       metrics = [
-        {'title': 'Agency Properties', 'value': myPropertiesCount.toString(), 'icon': Icons.home_outlined, 'color': Colors.blue},
-        {'title': 'Total Commission', 'value': '₹24.8L', 'icon': Icons.currency_rupee, 'color': Colors.red},
-        {'title': 'Active Brokers', 'value': '5', 'icon': Icons.group, 'color': Colors.teal},
+        {'title': 'Agency Properties', 'value': propertiesDisplay, 'icon': Icons.home_outlined, 'color': Colors.blue},
+        {'title': 'Total Commission', 'value': '₹0', 'icon': Icons.currency_rupee, 'color': Colors.red},
+        {'title': 'Active Brokers', 'value': '0', 'icon': Icons.group, 'color': Colors.teal},
         {'title': 'Agency Deals', 'value': activeDealsCount.toString(), 'icon': Icons.description_outlined, 'color': Colors.orange},
-        {'title': 'Public Listings', 'value': publicPropertiesCount.toString(), 'icon': Icons.public, 'color': Colors.green},
+        {'title': 'Public Listings', 'value': publicPropertiesDisplay, 'icon': Icons.public, 'color': Colors.green},
         {'title': 'Requests', 'value': requestsCount.toString(), 'icon': Icons.handshake_outlined, 'color': Colors.purple},
       ];
     } else {
-      myPropertiesCount = properties.length ~/ 2; // Mocking specific broker properties
       metrics = [
-        {'title': 'My Properties', 'value': myPropertiesCount.toString(), 'icon': Icons.home_outlined, 'color': Colors.blue},
+        {'title': 'My Properties', 'value': propertiesDisplay, 'icon': Icons.home_outlined, 'color': Colors.blue},
         {'title': 'My Deals', 'value': activeDealsCount.toString(), 'icon': Icons.description_outlined, 'color': Colors.orange},
-        {'title': 'My Commission', 'value': '₹6.5L', 'icon': Icons.currency_rupee, 'color': Colors.red},
+        {'title': 'My Commission', 'value': '₹0', 'icon': Icons.currency_rupee, 'color': Colors.red},
         {'title': 'Collab Requests', 'value': requestsCount.toString(), 'icon': Icons.handshake_outlined, 'color': Colors.purple},
-        {'title': 'Active Leads', 'value': '12', 'icon': Icons.person_outline, 'color': Colors.lightGreen},
-        {'title': 'Public Search', 'value': publicPropertiesCount.toString(), 'icon': Icons.search, 'color': Colors.teal},
+        {'title': 'Active Leads', 'value': '0', 'icon': Icons.person_outline, 'color': Colors.lightGreen},
+        {'title': 'Public Search', 'value': publicPropertiesDisplay, 'icon': Icons.search, 'color': Colors.teal},
       ];
     }
 
@@ -644,12 +679,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildDrawer(BuildContext context, UserRole role) {
+    final userData = AuthStorageService.getUserData();
+    final userName = (userData?['name'] as String?) ?? 'User';
+    final userEmail = (userData?['email'] as String?) ?? '';
+    final rawRole = (userData?['role'] as String?) ?? '';
+    final roleTitle = (userData?['adminRoleTitle'] as String?) ??
+        (rawRole == 'super_admin'
+            ? 'Super Admin (Full Access)'
+            : (role == UserRole.agencyAdmin ? 'Agency Admin' : 'Broker'));
+
     return Drawer(
-      backgroundColor: Colors.white,
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
+            padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 20),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [AppColors.primaryBlueLight, AppColors.primaryBlue],
@@ -662,15 +705,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: Colors.white,
-                      child: const Text('AV', style: TextStyle(color: AppColors.primaryBlue, fontSize: 24, fontWeight: FontWeight.bold)),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.business,
+                        size: 32,
+                        color: AppColors.primaryBlue,
+                      ),
                     ),
-                    // ROLE TOGGLE SWITCH
-                    Column(
+                    Row(
                       children: [
                         Switch(
                           value: role == UserRole.agencyAdmin,
@@ -682,17 +730,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           inactiveThumbColor: Colors.white,
                           inactiveTrackColor: Colors.white30,
                         ),
-                        Text(
-                          role == UserRole.agencyAdmin ? 'Admin View' : 'Broker View',
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
                       ],
                     ),
                   ],
                 ),
                 const Gap(16),
-                const Text('Amit Verma', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                const Text('amit@sunriseproperties.in', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                Text(userName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                if (userEmail.isNotEmpty)
+                  Text(userEmail, style: const TextStyle(color: Colors.white70, fontSize: 14)),
                 const Gap(8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -701,7 +746,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    role == UserRole.agencyAdmin ? 'Agency Admin' : 'Broker', 
+                    roleTitle, 
                     style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)
                   ),
                 ),
@@ -784,9 +829,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context); // close dialog
-              context.go('/login'); // clear stack and go to login
+              await AuthStorageService.clearSession(); // clear persistent session
+              if (context.mounted) {
+                context.go('/login'); // clear stack and go to login
+              }
             },
             child: const Text('Logout', style: TextStyle(color: Colors.white)),
           ),

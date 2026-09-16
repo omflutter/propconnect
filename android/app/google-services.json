@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "779781321483",
+    "project_id": "propconnect-b89bd",
+    "storage_bucket": "propconnect-b89bd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:779781321483:android:9ba82678581281aec8680e",
+        "android_client_info": {
+          "package_name": "com.example.propconnect"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDk3pna4_OkPANeG400zxo5soWyyH-xrEM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,12 @@
+{
+  "name": "propconnect-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PropConnect Platform Root Workspace",
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:admin": "cd super_admin_panel && npm run dev",
+    "start:all": "npx -y concurrently --names \"BACKEND,ADMIN\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:admin\"",
+    "build:all": "cd backend && npm run build && cd ../super_admin_panel && npm run build"
+  }
+}

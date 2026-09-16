@@ -23,18 +23,18 @@ class _DealsScreenState extends ConsumerState<DealsScreen> {
 
   final List<String> _dealStages = [
     'All',
-    'Lead Assigned',
-    'Property Shared',
+    'Enquiry',
+    'Requirement Matching',
+    'Proposal Sent',
     'Site Visit Scheduled',
     'Site Visit Completed',
-    'Negotiation Started',
-    'Offer Submitted',
-    'Token Generated',
+    'Negotiation',
+    'Token Done',
     'Agreement Signed',
-    'Registry Scheduled',
-    'Registry Completed',
-    'Deal Closed',
-    'Deal Lost'
+    'Registration Done',
+    'Payment Received',
+    'Commission Settled',
+    'Closed',
   ];
 
   @override

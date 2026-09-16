@@ -6,32 +6,40 @@ class AgencyNotifier extends Notifier<AgencyModel> {
   @override
   AgencyModel build() {
     return AgencyModel(
-      id: 'a1',
-      name: 'Sunrise Properties',
-      reraNumber: 'PR/GJ/AHMEDABAD/AUDA/CAA08234',
-      email: 'contact@sunriseproperties.in',
-      address: '123 Business Park, SG Highway, Ahmedabad',
-      brokers: [
-        BrokerModel(id: 'b1', name: 'Amit Verma', email: 'amit@sunriseproperties.in', phone: '+91 9876543210', role: 'Agency Admin'),
-        BrokerModel(id: 'b2', name: 'Rahul Singh', email: 'rahul@sunriseproperties.in', phone: '+91 9876543211', role: 'Broker / Agent'),
-        BrokerModel(id: 'b3', name: 'Neha Gupta', email: 'neha@sunriseproperties.in', phone: '+91 9876543212', role: 'Broker / Agent'),
-      ],
+      id: '',
+      name: '',
+      reraNumber: '',
+      email: '',
+      address: '',
+      brokers: const [],
     );
+  }
+
+  void setBrokers(List<BrokerModel> brokers) {
+    state = state.copyWith(brokers: brokers);
   }
 
   void updateAgencyDetails(String name, String rera, String email, String address) {
     state = state.copyWith(name: name, reraNumber: rera, email: email, address: address);
   }
 
-  void addBroker(String name, String email, String phone, String role) {
+  void addBroker(String name, String email, String phone, String role, {String? id}) {
     final newBroker = BrokerModel(
-      id: 'b${Random().nextInt(10000)}',
+      id: id ?? 'b${Random().nextInt(10000)}',
       name: name,
       email: email,
       phone: phone,
       role: role,
+      isActive: true,
     );
-    state = state.copyWith(brokers: [...state.brokers, newBroker]);
+    final exists = state.brokers.any((b) => b.id == newBroker.id || (b.email.isNotEmpty && b.email.toLowerCase() == newBroker.email.toLowerCase()));
+    if (exists) {
+      state = state.copyWith(
+        brokers: state.brokers.map((b) => (b.id == newBroker.id || b.email.toLowerCase() == newBroker.email.toLowerCase()) ? newBroker : b).toList(),
+      );
+    } else {
+      state = state.copyWith(brokers: [newBroker, ...state.brokers]);
+    }
   }
 
   void updateBroker(String id, String name, String email, String phone, String role) {

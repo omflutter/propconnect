@@ -73,6 +73,20 @@ button {
   font-family: inherit;
 }
 
+/* Spinner Keyframes & Utilities */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 0.75s linear infinite;
+}
+
 /* Global utility classes */
 .card {
   background: var(--surface);

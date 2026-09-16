@@ -136,3 +136,35 @@
   display: flex;
   gap: 8px;
 }
+
+/* Skeleton Loading Animations */
+@keyframes skeleton-pulse {
+  0% {
+    background-color: #f1f5f9;
+  }
+  50% {
+    background-color: #cbd5e1;
+  }
+  100% {
+    background-color: #f1f5f9;
+  }
+}
+
+.skeleton-box {
+  display: inline-block;
+  height: 14px;
+  border-radius: 4px;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.btn-primary:disabled, .btn-secondary:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.spinner-btn-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}

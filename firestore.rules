@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Conversations and messages for Realtime Broker Chat
+    match /conversations/{conversationId} {
+      allow read, write: if true;
+
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Presence tracking for Online / Offline status
+    match /presence/{userId} {
+      allow read, write: if true;
+    }
+  }
+}

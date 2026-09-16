@@ -19,6 +19,7 @@ import { Gateways } from './pages/Gateways';
 import { AuditLogs } from './pages/AuditLogs';
 import { ChatLogs } from './pages/ChatLogs';
 import { Notifications } from './pages/Notifications';
+import { Progress } from './pages/Progress';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
 
@@ -38,6 +39,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/progress" element={<Navigate to="/" replace />} />
         <Route path="/audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
         
         <Route path="/agencies" element={<ProtectedRoute><Agencies /></ProtectedRoute>} />

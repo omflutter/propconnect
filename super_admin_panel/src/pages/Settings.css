@@ -134,41 +134,105 @@ input:checked + .slider:before {
   border-radius: 50%;
 }
 
-/* Permission Checkbox Grid in Modal */
-.permission-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+/* Granular Section Permission Matrix Table in Modal */
+.matrix-container {
   background: var(--background);
-  padding: 16px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--border);
+  overflow: hidden;
 }
 
-.permission-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 12.5px;
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.matrix-table th {
+  background-color: var(--surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.matrix-table th:first-child {
+  text-align: left;
+}
+
+.matrix-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  text-align: center;
+}
+
+.matrix-table td:first-child {
+  text-align: left;
+  font-weight: 600;
   color: var(--text-primary);
-  cursor: pointer;
 }
 
-.permission-item input {
-  margin-top: 2px;
+.matrix-table tr:last-child td {
+  border-bottom: none;
+}
+
+.perm-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary-blue);
 }
 
 .power-chip {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   white-space: nowrap;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 12px;
-  background: #E2E8F0;
-  color: #334155;
-  margin-right: 4px;
-  margin-bottom: 4px;
-  border: 1px solid #CBD5E1;
+  margin-right: 6px;
+  margin-bottom: 6px;
+}
+
+.perm-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.perm-badge.view {
+  background-color: #DBEAFE;
+  color: #1E40AF;
+}
+
+.perm-badge.edit {
+  background-color: #FEF3C7;
+  color: #92400E;
+}
+
+.perm-badge.delete {
+  background-color: #FEE2E2;
+  color: #991B1B;
+}
+
+.section-powers-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.section-powers-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
 }

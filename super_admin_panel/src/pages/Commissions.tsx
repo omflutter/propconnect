@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, DollarSign, Percent, ArrowRightLeft, CheckCircle2, Clock, X, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
+import { apiFetch } from '../services/api';
 import './GlobalData.css';
 import './Commissions.css';
 
@@ -10,7 +11,7 @@ export function Commissions() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
 
-  const [commissions, setCommissions] = useState([
+  const [commissions, setCommissions] = useState<any[]>([
     {
       id: 'COMM-801',
       dealId: 'DL-501',
@@ -69,8 +70,45 @@ export function Commissions() {
     }
   ]);
 
-  const handleMarkPaid = (id: string) => {
+  const loadCommissions = async () => {
+    try {
+      const res = await apiFetch<any[]>('/commissions');
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setCommissions(res.data.map(c => ({
+          id: c.commissionCode || `COMM-${c.id}`,
+          rawId: c.id,
+          dealId: c.dealCode || `DL-${c.dealId}`,
+          property: c.propertyName || 'Commercial Unit',
+          dealValue: typeof c.dealValue === 'number' ? `₹${c.dealValue.toLocaleString('en-IN')}` : c.dealValue,
+          commType: `${c.commissionType || 'Percentage'} (${c.commissionRate || 2}%)`,
+          totalComm: typeof c.totalCommission === 'number' ? `₹${c.totalCommission.toLocaleString('en-IN')}` : c.totalCommission,
+          brokerA: `${c.agencyAName || 'Agency A'} (${c.brokerAName || 'Broker A'})`,
+          brokerAShare: `${c.brokerASharePct || 50}% (${typeof c.brokerAAmount === 'number' ? '₹' + c.brokerAAmount.toLocaleString('en-IN') : c.brokerAAmount})`,
+          brokerB: `${c.agencyBName || 'Agency B'} (${c.brokerBName || 'Broker B'})`,
+          brokerBShare: `${c.brokerBSharePct || 50}% (${typeof c.brokerBAmount === 'number' ? '₹' + c.brokerBAmount.toLocaleString('en-IN') : c.brokerBAmount})`,
+          status: c.status || 'Pending',
+          date: c.createdAt ? c.createdAt.substring(0, 10) : new Date().toISOString().substring(0, 10),
+        })));
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    loadCommissions();
+  }, []);
+
+  const handleMarkPaid = async (id: string) => {
+    const target = commissions.find(c => c.id === id);
     setCommissions(commissions.map(c => c.id === id ? { ...c, status: 'Paid' } : c));
+    
+    if (target?.rawId) {
+      try {
+        await apiFetch(`/commissions/${target.rawId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'Paid' }),
+        });
+      } catch (_) {}
+    }
     toast.success(`Commission ${id} marked as fully paid!`);
   };
 

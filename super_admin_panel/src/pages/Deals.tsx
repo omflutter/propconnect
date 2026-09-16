@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, MoreVertical, Briefcase, Calendar, XCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
+import { apiFetch } from '../services/api';
 import './GlobalData.css';
 
 export function Deals() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
-  const [deals, setDeals] = useState([
+  const [deals, setDeals] = useState<any[]>([
     { id: 'DL-501', title: 'Sea Face Villa', value: '₹4.2 Cr', agencyA: 'Sunrise Properties', agencyB: 'Metro Reality India', status: 'Negotiation', date: '2026-07-20' },
     { id: 'DL-502', title: 'DLF Cyber City Office', value: '₹8.5 Cr', agencyA: 'Metro Reality India', agencyB: 'Bangalore Estates', status: 'Closed', date: '2026-07-15' },
     { id: 'DL-503', title: 'IT Park Space', value: '₹1.2 Lakhs/mo', agencyA: 'Sunrise Properties', agencyB: 'Sunrise Properties', status: 'Token', date: '2026-07-22' },
@@ -16,8 +17,40 @@ export function Deals() {
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleCancelDeal = (id: string) => {
+  const loadDeals = async () => {
+    try {
+      const res = await apiFetch<any[]>('/deals');
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setDeals(res.data.map(d => ({
+          id: d.dealCode || `DL-${d.id}`,
+          rawId: d.id,
+          title: d.propertyName || 'Commercial Space',
+          value: d.dealValue || '₹1.0 Cr',
+          agencyA: d.agencyAName || 'Sunrise Properties',
+          agencyB: d.agencyBName || 'Partner Agency',
+          status: d.status || 'Negotiation',
+          date: d.createdAt ? d.createdAt.substring(0, 10) : new Date().toISOString().substring(0, 10),
+        })));
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    loadDeals();
+  }, []);
+
+  const handleCancelDeal = async (id: string) => {
+    const target = deals.find(d => d.id === id);
     setDeals(deals.map(d => d.id === id ? { ...d, status: 'Dropped' } : d));
+    
+    if (target?.rawId) {
+      try {
+        await apiFetch(`/deals/${target.rawId}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'Dropped', notes: 'Force dropped by Super Admin' }),
+        });
+      } catch (_) {}
+    }
     toast.error(`Deal ${id} has been forcefully dropped.`);
   };
 

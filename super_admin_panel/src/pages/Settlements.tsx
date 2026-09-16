@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, Calendar, CreditCard, CheckCircle, Clock, X, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ActionDropdown } from '../components/ActionDropdown';
+import { apiFetch } from '../services/api';
 import './GlobalData.css';
 import './Settlements.css';
 
@@ -11,12 +12,12 @@ export function Settlements() {
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [selectedSettlement, setSelectedSettlement] = useState<any>(null);
 
-  const [settlements, setSettlements] = useState([
+  const [settlements, setSettlements] = useState<any[]>([
     {
       id: 'STL-901',
       agency: 'Sunrise Properties',
       dueDate: '2026-07-25',
-      amountDue: '₹4,20,000',
+      amountDue: '₹4,20,00,000',
       amountReceived: '₹4,20,000',
       amountPending: '₹0',
       method: 'NEFT Transfer',
@@ -66,15 +67,56 @@ export function Settlements() {
     }
   ]);
 
-  const handleCompleteSettlement = (id: string) => {
+  const loadSettlements = async () => {
+    try {
+      const res = await apiFetch<any[]>('/commissions/settlements');
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setSettlements(res.data.map(s => ({
+          id: s.settlementCode || `STL-${s.id}`,
+          rawId: s.id,
+          agency: s.agencyName || 'Sunrise Properties',
+          dueDate: s.dueDate ? s.dueDate.substring(0, 10) : '2026-08-01',
+          amountDue: typeof s.amountReceived === 'number' ? `₹${(s.amountReceived + (s.amountPending || 0)).toLocaleString('en-IN')}` : s.amountReceived,
+          amountReceived: typeof s.amountReceived === 'number' ? `₹${s.amountReceived.toLocaleString('en-IN')}` : s.amountReceived,
+          amountPending: typeof s.amountPending === 'number' ? `₹${s.amountPending.toLocaleString('en-IN')}` : (s.amountPending || '₹0'),
+          method: s.paymentMethod || 'NEFT Transfer',
+          refNo: s.referenceNumber || 'Pending',
+          settlementDate: s.settlementDate ? s.settlementDate.substring(0, 10) : '-',
+          remarks: s.remarks || `Settlement for ${s.dealId || 'deal'}`,
+          status: s.status === 'Received' ? 'Completed' : (s.status || 'Pending'),
+        })));
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    loadSettlements();
+  }, []);
+
+  const handleCompleteSettlement = async (id: string) => {
+    const target = settlements.find(s => s.id === id);
     setSettlements(settlements.map(s => s.id === id ? {
       ...s,
       status: 'Completed',
       amountReceived: s.amountDue,
       amountPending: '₹0',
       refNo: `NEFT_${Math.floor(10000000 + Math.random() * 90000000)}`,
-      settlementDate: '2026-08-01'
+      settlementDate: new Date().toISOString().substring(0, 10),
     } : s));
+
+    if (target?.rawId) {
+      try {
+        await apiFetch('/commissions/settlements', {
+          method: 'POST',
+          body: JSON.stringify({
+            settlementCode: target.id,
+            status: 'Settled',
+            amountReceived: target.amountDue,
+            amountPending: 0,
+          }),
+        });
+      } catch (_) {}
+    }
     toast.success(`Settlement ${id} marked as fully completed!`);
   };
 

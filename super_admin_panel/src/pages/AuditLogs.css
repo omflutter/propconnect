@@ -4,12 +4,102 @@
 }
 
 .audit-action-tag {
-  font-family: monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 11.5px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
   background: var(--background);
   border: 1px solid var(--border);
   width: fit-content;
+  color: var(--text-primary);
+}
+
+/* Live Auto Refresh Pulse Button */
+.live-poll-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.live-poll-btn.active {
+  background-color: rgba(16, 185, 129, 0.1);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #94a3b8;
+}
+
+.live-poll-btn.active .pulse-dot {
+  background-color: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulseGreen 1.6s infinite;
+}
+
+@keyframes pulseGreen {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Dark Code Inspector Modal */
+.code-inspector-container {
+  background-color: #0f172a;
+  border-radius: 12px;
+  border: 1px solid #1e293b;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+}
+
+.code-inspector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.code-inspector-body {
+  padding: 16px;
+  max-height: 380px;
+  overflow-y: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #38bdf8;
+  background-color: #0f172a;
+}
+
+.code-inspector-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
 }

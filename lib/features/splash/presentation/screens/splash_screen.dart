@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/constants/app_strings.dart';
 import 'package:propconnect/core/routing/app_router.dart';
+import 'package:propconnect/core/services/auth_storage_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,9 +25,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       duration: const Duration(seconds: 2),
     )..forward();
 
-    Timer(const Duration(seconds: 3), () {
+    Timer(const Duration(seconds: 2), () {
       if (mounted) {
-        context.go(AppRouter.onboarding);
+        if (AuthStorageService.isLoggedIn()) {
+          context.go(AppRouter.home);
+        } else {
+          context.go(AppRouter.login);
+        }
       }
     });
   }
@@ -55,22 +60,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             const Spacer(),
             // Logo / Icon
             Container(
-              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 20,
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 25,
                     offset: const Offset(0, 10),
                   )
                 ],
               ),
-              child: const Icon(
-                Icons.business, // Building icon
-                size: 80,
-                color: AppColors.primaryBlue,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset(
+                  'assets/images/app_icon.png',
+                  width: 100,
+                  height: 100,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             const SizedBox(height: 32),
