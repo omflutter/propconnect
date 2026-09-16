@@ -57,10 +57,10 @@ export function WhatsApp() {
   const [selectedPayload, setSelectedPayload] = useState<{ title: string; data: any } | null>(null);
 
   const templates = [
-    { name: 'Super Admin Test Ping', code: 'wa_admin_ping_v1', category: 'Utility', status: 'Interakt Meta Template', sample: 'Hello {{1}}, this is an alert from PropConnect: {{2}} at {{3}}.' },
-    { name: 'Property Share & Brochure', code: 'wa_prop_brochure_v1', category: 'Utility', status: 'Interakt Meta Template', sample: 'Hello {{1}}, here is the brochure for {{2}} in {{3}} priced at {{4}}. Link: {{5}}' },
-    { name: 'Collaboration Notification', code: 'wa_collab_req_v2', category: 'Transactional', status: 'Interakt Meta Template', sample: 'New collaboration request for property {{1}} from {{2}}.' },
-    { name: 'Deal Status Update', code: 'wa_deal_update_v1', category: 'Transactional', status: 'Interakt Meta Template', sample: 'Deal {{1}} status updated to {{2}}.' },
+    { name: 'Super Admin Test Ping', code: 'wa_admin_ping_v1', category: 'Utility', status: 'Pending Interakt Approval', sample: 'Hello {{1}}, this is an alert from PropConnect: {{2}} at {{3}}.' },
+    { name: 'Property Share & Brochure', code: 'wa_prop_brochure_v1', category: 'Utility', status: 'Pending Interakt Approval', sample: 'Hello {{1}}, here is the brochure for {{2}} in {{3}} priced at {{4}}. Link: {{5}}' },
+    { name: 'Collaboration Notification', code: 'wa_collab_req_v2', category: 'Transactional', status: 'Pending Interakt Approval', sample: 'New collaboration request for property {{1}} from {{2}}.' },
+    { name: 'Deal Status Update', code: 'wa_deal_update_v1', category: 'Transactional', status: 'Pending Interakt Approval', sample: 'Deal {{1}} status updated to {{2}}.' },
   ];
 
   const getDirectWhatsAppUrl = (phone: string, text: string) => {
@@ -230,10 +230,10 @@ export function WhatsApp() {
           </span>
         </div>
         <div className="wa-stat-card card">
-          <span className="wa-stat-title">Approved Templates</span>
+          <span className="wa-stat-title">Configured Templates</span>
           <span className="wa-stat-value">4 Templates</span>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-            Active in Interakt Account
+          <span style={{ fontSize: 11, color: '#d97706', marginTop: 4, fontWeight: 600 }}>
+            Pending Interakt Approval
           </span>
         </div>
       </div>
@@ -279,7 +279,9 @@ export function WhatsApp() {
             <div key={i} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--background)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</span>
-                <span className="wa-template-chip">{t.status}</span>
+                <span className={`wa-template-chip ${t.status.includes('Approved') ? 'approved' : 'pending'}`}>
+                  {t.status}
+                </span>
               </div>
               <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{t.code}</div>
               <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.4 }}>{t.sample}</div>
