@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Users, Building, Activity, DollarSign, Server, Smartphone, CheckCircle, TrendingUp, History, Briefcase, CreditCard, Loader2 } from 'lucide-react';
+import { 
+  Users, Building, Activity, DollarSign, Server, Smartphone, CheckCircle, 
+  TrendingUp, History, Briefcase, CreditCard, Loader2, Home, Handshake, MessageSquare
+} from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -47,20 +50,88 @@ export function Dashboard() {
   ];
 
   const agencyCount = dashboardData ? dashboardData.agencies.total : 3;
+  const activeAgencyCount = dashboardData ? dashboardData.agencies.active : 3;
   const brokerCount = dashboardData ? dashboardData.brokers.total : 5;
-  const subData = dashboardData ? dashboardData.subscriptions : [
+  const activeBrokerCount = dashboardData ? dashboardData.brokers.active : 5;
+  const totalProperties = dashboardData?.properties?.total ?? 4;
+  const activeProperties = dashboardData?.properties?.active ?? 4;
+  const publicProperties = dashboardData?.properties?.public ?? 3;
+  const privateProperties = dashboardData?.properties?.private ?? 1;
+
+  const totalCollabs = dashboardData?.collaborations?.total ?? 3;
+  const pendingCollabs = dashboardData?.collaborations?.pending ?? 1;
+  const approvedCollabs = dashboardData?.collaborations?.approved ?? 2;
+
+  const totalDeals = dashboardData?.deals?.total ?? 3;
+  const activeDeals = dashboardData?.deals?.active ?? 2;
+  const closedDeals = dashboardData?.deals?.closed ?? 1;
+
+  const commissionGenerated = dashboardData?.financials?.commissionGeneratedFormatted ?? '₹4.8 Cr';
+  const monthlyRevenue = dashboardData?.financials?.monthlyRevenueFormatted ?? '₹1.24 Cr';
+  const totalWhatsApp = dashboardData?.whatsapp?.totalMessages ?? 5;
+
+  const subData = dashboardData?.subscriptions ?? [
     { name: 'Basic', users: 1, fill: '#94A3B8' },
-    { name: 'Pro', users: 1, fill: '#38BDF8' },
+    { name: 'Pro', users: 2, fill: '#38BDF8' },
     { name: 'Enterprise', users: 1, fill: '#00308F' },
   ];
 
+  // 6 Primary PRD Section 19 Metric Cards
   const stats = [
-    { label: 'Platform Revenue', value: '₹1.24 Cr', icon: DollarSign, color: '#00308F', trend: '+22%', link: '/commissions' },
-    { label: 'Commission Gen.', value: '₹4.8 Cr', icon: Activity, color: '#10b981', trend: '+18%', link: '/commissions' },
-    { label: 'Agencies Matrix', value: `${agencyCount} SaaS`, icon: Building, color: '#8b5cf6', trend: '+12%', link: '/agencies' },
-    { label: 'Platform Brokers', value: `${brokerCount} Users`, icon: Users, color: '#0ea5e9', trend: '+8%', link: '/brokers' },
-    { label: 'Active Subscriptions', value: `${agencyCount} Active`, icon: CreditCard, color: '#f59e0b', trend: '+15%', link: '/subscriptions' },
-    { label: 'Active Deals', value: '892 Active', icon: Briefcase, color: '#ec4899', trend: '+14%', link: '/deals' },
+    { 
+      label: 'Total Agencies', 
+      value: `${agencyCount} Agencies`, 
+      subtext: `${activeAgencyCount} Active SaaS Tenants`,
+      icon: Building, 
+      color: '#8b5cf6', 
+      trend: '+12%', 
+      link: '/agencies' 
+    },
+    { 
+      label: 'Active Brokers', 
+      value: `${activeBrokerCount} Active`, 
+      subtext: `${brokerCount} Registered Brokers`,
+      icon: Users, 
+      color: '#0ea5e9', 
+      trend: '+8%', 
+      link: '/brokers' 
+    },
+    { 
+      label: 'Active Properties', 
+      value: `${activeProperties} Listings`, 
+      subtext: `${publicProperties} Public • ${privateProperties} Private`,
+      icon: Home, 
+      color: '#10b981', 
+      trend: '+24%', 
+      link: '/properties' 
+    },
+    { 
+      label: 'Collaboration Requests', 
+      value: `${totalCollabs} Requests`, 
+      subtext: `${approvedCollabs} Approved • ${pendingCollabs} Pending`,
+      icon: Handshake, 
+      color: '#f59e0b', 
+      trend: '+19%', 
+      link: '/collaborations' 
+    },
+    { 
+      label: 'Active Deals', 
+      value: `${activeDeals} Deals`, 
+      subtext: `${closedDeals} Successfully Closed`,
+      icon: Briefcase, 
+      color: '#ec4899', 
+      trend: '+14%', 
+      link: '/deals' 
+    },
+    { 
+      label: 'Commission Generated', 
+      value: commissionGenerated, 
+      subtext: `Monthly Platform Rev: ${monthlyRevenue}`,
+      icon: DollarSign, 
+      color: '#00308F', 
+      trend: '+22%', 
+      link: '/commissions' 
+    },
   ];
 
   return (
@@ -68,25 +139,27 @@ export function Dashboard() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: '20px' }}>Global Command Center</h1>
-          <p style={{ marginTop: 4, fontSize: '13px' }}>System health, revenue, and live MySQL database metrics for PropConnect India.</p>
+          <p style={{ marginTop: 4, fontSize: '13px' }}>
+            System health, transactions, and live PostgreSQL database metrics for PropConnect India (PRD Sec 19).
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div className="status-pill success">
             <Server size={14} />
-            <span>Express Backend: Healthy</span>
+            <span>Backend: Healthy</span>
           </div>
           <div className="status-pill success">
             <CheckCircle size={14} />
-            <span>MySQL Database: Online</span>
+            <span>PostgreSQL: Connected</span>
           </div>
           <div className="status-pill success">
-            <Smartphone size={14} />
-            <span>Swagger Specs: Ready</span>
+            <MessageSquare size={14} />
+            <span>Interakt WhatsApp: Connected</span>
           </div>
         </div>
       </div>
 
-      {/* 6 Interactive Stat Cards */}
+      {/* 6 Primary PRD Metric Cards */}
       <div className="stats-grid-massive">
         {stats.map((stat, idx) => {
           const Icon = stat.icon;
@@ -101,6 +174,7 @@ export function Dashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="stat-label">{stat.label}</span>
                   <h3 className="stat-value">{isLoading ? <Loader2 size={18} className="animate-spin" /> : stat.value}</h3>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{stat.subtext}</span>
                 </div>
                 <div className="stat-icon-wrapper" style={{ backgroundColor: `${stat.color}15` }}>
                   <Icon className="stat-icon" size={20} style={{ color: stat.color }} />
@@ -121,6 +195,57 @@ export function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      {/* Secondary PRD Metric Breakdown Ribbon */}
+      <div className="card" style={{ padding: '16px 20px', marginBottom: 24, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: 8, background: '#eff6ff', borderRadius: 8, color: '#3b82f6' }}>
+            <Home size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Inventory Breakdown</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>
+              {publicProperties} Public • {privateProperties} Private
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: 8, background: '#fef3c7', borderRadius: 8, color: '#d97706' }}>
+            <Handshake size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Co-Broking Status</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>
+              {approvedCollabs} Approved / {pendingCollabs} Pending
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: 8, background: '#fdf2f8', borderRadius: 8, color: '#db2777' }}>
+            <Briefcase size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Deal Conversions</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>
+              {closedDeals} Closed • {activeDeals} Active Pipeline
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: 8, background: '#f0fdf4', borderRadius: 8, color: '#16a34a' }}>
+            <MessageSquare size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>WhatsApp Messages (Interakt)</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>
+              {totalWhatsApp} Outbound Delivered
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="dashboard-content-massive">
@@ -156,7 +281,7 @@ export function Dashboard() {
 
           <div className="chart-container card">
             <div className="chart-header">
-              <h3>Active Subscriptions by Tier</h3>
+              <h3>Active Subscriptions by Tier (PRD Sec 14)</h3>
             </div>
             <div className="chart-wrapper">
               <ResponsiveContainer width="100%" height={200}>
@@ -171,7 +296,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Live System Activity Feed connected to MySQL Audit Logs */}
+        {/* Live System Activity Feed connected to PostgreSQL Audit Logs */}
         <div className="card audit-feed">
           <div className="chart-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
