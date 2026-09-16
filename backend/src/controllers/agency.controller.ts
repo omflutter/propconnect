@@ -6,6 +6,7 @@ import { Agency } from '../models/agency.model';
 import { User } from '../models/user.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { AuditService } from '../services/audit.service';
 
 /**
  * Onboard / Register a New Agency (From App or Super Admin Panel) - 100% PostgreSQL
@@ -76,6 +77,16 @@ export const createAgency = async (req: Request, res: Response) => {
       dealsCount: 0,
       status: 'Active',
     });
+
+    // PRD Sec 18: Record Audit Log for Subscription Purchased on Agency Onboard
+    AuditService.logAction({
+      action: 'Subscription Purchased',
+      target: `${agency.name} (${agency.subscriptionTier})`,
+      req,
+      actorName: agency.adminName,
+      actorRole: 'Agency Admin',
+      details: { agencyId: agency.id, tier: agency.subscriptionTier, quota: agency.userQuota },
+    }).catch(() => {});
 
     if (existingUser) {
       // In-App Registration: Promote current user to agency_admin and associate with new Agency
@@ -282,11 +293,25 @@ export const updateAgency = async (req: Request, res: Response) => {
     if (req.body.adminName) agency.adminName = req.body.adminName;
     if (req.body.adminEmail) agency.adminEmail = req.body.adminEmail;
     if (req.body.adminPhone !== undefined) agency.adminPhone = req.body.adminPhone;
+    const oldTier = agency.subscriptionTier;
     if (req.body.subscriptionTier) agency.subscriptionTier = req.body.subscriptionTier;
     if (req.body.userQuota !== undefined) agency.userQuota = parseInt(req.body.userQuota, 10);
     if (req.body.status && ['Active', 'Pending', 'Suspended'].includes(req.body.status)) agency.status = req.body.status;
 
     await agency.save();
+
+    // PRD Sec 18: Record Audit Log for Subscription Purchased if tier changed
+    if (req.body.subscriptionTier && req.body.subscriptionTier !== oldTier) {
+      AuditService.logAction({
+        action: 'Subscription Purchased',
+        target: `${agency.name} upgraded from ${oldTier} to ${req.body.subscriptionTier}`,
+        req,
+        actorName: agency.adminName,
+        actorRole: 'Agency Admin',
+        details: { agencyId: agency.id, oldTier, newTier: req.body.subscriptionTier },
+      }).catch(() => {});
+    }
+
     return successResponse(res, 'Agency updated successfully in PostgreSQL', agency);
   } catch (error: any) {
     return errorResponse(res, 'Failed to update agency', error.message || error);

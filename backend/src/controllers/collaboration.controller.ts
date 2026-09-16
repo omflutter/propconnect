@@ -9,6 +9,7 @@ import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { WhatsAppService } from '../services/whatsapp.service';
 import { NotificationService } from '../services/notification.service';
+import { AuditService } from '../services/audit.service';
 
 /**
  * Submit a Collaboration Request (Broker B requests collaboration on Broker A's Property)
@@ -105,6 +106,20 @@ export const createCollaboration = async (req: Request, res: Response) => {
       channels: ['in_app', 'push'],
     }).catch(() => {});
 
+    // PRD Sec 18: Record Audit Log for Collaboration Requested
+    AuditService.logAction({
+      action: 'Collaboration Requested',
+      target: `${newRequest.requestCode} (${newRequest.propertyName})`,
+      req,
+      actorName: callerUserName,
+      actorRole: 'Broker',
+      details: {
+        requestCode: newRequest.requestCode,
+        propertyId: newRequest.propertyId,
+        targetAgency: targetAgencyName,
+      },
+    }).catch(() => {});
+
     return successResponse(res, `Collaboration request ${newRequest.requestCode} submitted`, newRequest, 201);
   } catch (error: any) {
     return errorResponse(res, 'Failed to create collaboration request', error.message || error);
@@ -199,6 +214,16 @@ export const respondCollaboration = async (req: Request, res: Response) => {
         actionRoute: '/collaborations',
         metadata: { requestCode: collabReq.requestCode, propertyId: collabReq.propertyId, status: 'Rejected' },
         channels: ['in_app', 'push'],
+      }).catch(() => {});
+
+      // PRD Sec 18: Record Audit Log for Collaboration Rejected
+      AuditService.logAction({
+        action: 'Collaboration Rejected',
+        target: `${collabReq.requestCode} (${collabReq.propertyName})`,
+        req,
+        actorName: collabReq.targetBrokerName,
+        actorRole: 'Broker',
+        details: { requestCode: collabReq.requestCode, remarks },
       }).catch(() => {});
 
       return successResponse(res, `Collaboration request ${collabReq.requestCode} rejected`, collabReq);
@@ -312,6 +337,21 @@ export const respondCollaboration = async (req: Request, res: Response) => {
         actionRoute: '/deals',
         metadata: { requestCode: collabReq.requestCode, dealId: deal.id, dealCode: deal.dealCode, propertyId: collabReq.propertyId },
         channels: ['in_app', 'push'],
+      }).catch(() => {});
+
+      // PRD Sec 18: Record Audit Log for Collaboration Approved
+      AuditService.logAction({
+        action: 'Collaboration Approved',
+        target: `${collabReq.requestCode} -> Deal ${deal.dealCode}`,
+        req,
+        actorName: collabReq.targetBrokerName,
+        actorRole: 'Broker',
+        details: {
+          requestCode: collabReq.requestCode,
+          dealId: deal.id,
+          dealCode: deal.dealCode,
+          commissionCode: commission.commissionCode,
+        },
       }).catch(() => {});
 
       return successResponse(

@@ -1,9 +1,20 @@
 import { Router } from 'express';
-import { adminLogin, loginUser, getCurrentUser, updateUserProfile, changePassword } from '../controllers/auth.controller';
+import { adminLogin, loginUser, logoutUser, getCurrentUser, updateUserProfile, changePassword } from '../controllers/auth.controller';
 import { createAgency } from '../controllers/agency.controller';
 import { authenticateJwt } from '../middlewares/auth.middleware';
 
 const router = Router();
+
+/**
+ * @openapi
+ * /auth/logout:
+ *   post:
+ *     summary: User Logout
+ *     description: Logs user logout action in audit logs (PRD Sec 18).
+ *     tags:
+ *       - Authentication
+ */
+router.post('/auth/logout', logoutUser);
 
 /**
  * @openapi

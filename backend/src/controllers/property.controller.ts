@@ -5,6 +5,7 @@ import { Property } from '../models/property.model';
 import { Agency } from '../models/agency.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { AuditService } from '../services/audit.service';
 
 /**
  * Privacy Firewall helper: Masks confidential owner details and negotiable price
@@ -233,6 +234,16 @@ export const createProperty = async (req: Request, res: Response) => {
       documents: req.body.documents || [],
     });
 
+    // PRD Sec 18: Record Audit Log for Property Created
+    AuditService.logAction({
+      action: 'Property Created',
+      target: `${property.title} (${property.propertyCode})`,
+      req,
+      actorName: property.brokerName,
+      actorRole: 'Broker',
+      details: { propertyId: property.id, price: property.price, type: property.type },
+    }).catch(() => {});
+
     return successResponse(res, 'Property listing created successfully in PostgreSQL', property, 201);
   } catch (error: any) {
     return errorResponse(res, 'Failed to create property', error.message || error);
@@ -448,6 +459,17 @@ export const updateProperty = async (req: Request, res: Response) => {
     if (req.body.documents !== undefined) property.documents = req.body.documents;
 
     await property.save();
+
+    // PRD Sec 18: Record Audit Log for Property Updated
+    AuditService.logAction({
+      action: 'Property Updated',
+      target: `${property.title} (${property.propertyCode})`,
+      req,
+      actorName: property.brokerName,
+      actorRole: 'Broker',
+      details: { propertyId: property.id, status: property.status, price: property.price },
+    }).catch(() => {});
+
     return successResponse(res, 'Property updated successfully in PostgreSQL', property);
   } catch (error: any) {
     return errorResponse(res, 'Failed to update property', error.message || error);
@@ -471,7 +493,23 @@ export const deleteProperty = async (req: Request, res: Response) => {
       return errorResponse(res, 'Property not found', null, 404);
     }
 
+    const propTitle = property.title;
+    const propCode = property.propertyCode;
+    const propId = property.id;
+    const brokerName = property.brokerName;
+
     await property.destroy();
+
+    // PRD Sec 18: Record Audit Log for Property Deleted
+    AuditService.logAction({
+      action: 'Property Deleted',
+      target: `${propTitle} (${propCode})`,
+      req,
+      actorName: brokerName,
+      actorRole: 'Broker',
+      details: { propertyId: propId },
+    }).catch(() => {});
+
     return successResponse(res, 'Property deleted successfully from PostgreSQL');
   } catch (error: any) {
     return errorResponse(res, 'Failed to delete property', error.message || error);

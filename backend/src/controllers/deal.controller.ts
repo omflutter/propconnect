@@ -7,6 +7,7 @@ import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { WhatsAppService } from '../services/whatsapp.service';
 import { NotificationService } from '../services/notification.service';
+import { AuditService } from '../services/audit.service';
 
 /**
  * Mask sensitive contact info per PRD Section 10 Lead Privacy Firewall
@@ -308,6 +309,16 @@ export const updateDealStatus = async (req: Request, res: Response) => {
         channels: ['in_app', 'push'],
       }).catch(() => {});
     }
+
+    // PRD Sec 18: Record Audit Log for Deal Status Changed
+    AuditService.logAction({
+      action: 'Deal Status Changed',
+      target: `Deal ${deal.dealCode} (${deal.propertyName}) -> ${newStage}`,
+      req,
+      actorName: updatedBy || deal.brokerAName || 'Broker',
+      actorRole: 'Broker',
+      details: { dealId: deal.id, dealCode: deal.dealCode, newStage, remarks },
+    }).catch(() => {});
 
     return successResponse(res, `Deal stage updated to "${newStage}"`, deal);
   } catch (error: any) {

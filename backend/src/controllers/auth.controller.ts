@@ -6,6 +6,7 @@ import { Agency } from '../models/agency.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
+import { AuditService } from '../services/audit.service';
 
 /**
  * Super Admin & Agency Admin Login Endpoint - 100% PostgreSQL
@@ -64,6 +65,16 @@ export const adminLogin = async (req: Request, res: Response) => {
       agencyId: user.agencyId,
       agency: user.agency || null,
     };
+
+    // PRD Sec 18: Record Audit Log for User Login (Admin)
+    AuditService.logAction({
+      action: 'User Login',
+      target: `${user.email} (${user.role})`,
+      req,
+      actorName: user.name,
+      actorRole: user.role === 'super_admin' ? 'Super Admin' : 'Agency Admin',
+      details: { userId: user.id, email: user.email, role: user.role, type: 'Admin Portal' },
+    }).catch(() => {});
 
     return successResponse(res, 'Admin authentication successful', {
       token,
@@ -126,6 +137,16 @@ export const loginUser = async (req: Request, res: Response) => {
       agencyId: user.agencyId,
       agency: user.agency || null,
     };
+
+    // PRD Sec 18: Record Audit Log for User Login (Broker/Agent)
+    AuditService.logAction({
+      action: 'User Login',
+      target: `${user.email} (${user.role})`,
+      req,
+      actorName: user.name,
+      actorRole: user.role === 'agency_admin' ? 'Agency Admin' : 'Broker',
+      details: { userId: user.id, email: user.email, role: user.role, type: 'Mobile/Web Portal' },
+    }).catch(() => {});
 
     return successResponse(res, 'Login successful', {
       token,
@@ -238,3 +259,41 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     return errorResponse(res, 'Failed to change password', error.message || error);
   }
 };
+
+/**
+ * Logout Endpoint - PRD Sec 18: Record Audit Log for User Logout
+ */
+export const logoutUser = async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let actorName = 'User';
+    let actorRole = 'Broker';
+    let userEmail = '';
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.verify(authHeader.split(' ')[1], env.JWT_SECRET) as any;
+        if (decoded) {
+          actorName = decoded.name || decoded.email || 'User';
+          actorRole = decoded.role === 'super_admin' ? 'Super Admin' : (decoded.role === 'agency_admin' ? 'Agency Admin' : 'Broker');
+          userEmail = decoded.email || '';
+        }
+      } catch (_) {}
+    }
+
+    // PRD Sec 18: Record Audit Log for User Logout
+    AuditService.logAction({
+      action: 'User Logout',
+      target: userEmail ? `${userEmail} (${actorRole})` : `${actorName} (${actorRole})`,
+      req,
+      actorName,
+      actorRole,
+      details: { email: userEmail, role: actorRole },
+    }).catch(() => {});
+
+    return successResponse(res, 'Logged out successfully');
+  } catch (error: any) {
+    return errorResponse(res, 'Logout failed', error.message || error);
+  }
+};
+

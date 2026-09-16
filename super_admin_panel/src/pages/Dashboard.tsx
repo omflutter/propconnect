@@ -68,6 +68,7 @@ export function Dashboard() {
 
   const commissionGenerated = dashboardData?.financials?.commissionGeneratedFormatted ?? '₹4.8 Cr';
   const monthlyRevenue = dashboardData?.financials?.monthlyRevenueFormatted ?? '₹1.24 Cr';
+  const subscriptionRevenue = dashboardData?.financials?.subscriptionRevenueFormatted ?? '₹23,997';
   const totalWhatsApp = dashboardData?.whatsapp?.totalMessages ?? 5;
 
   const subData = dashboardData?.subscriptions ?? [
@@ -76,7 +77,7 @@ export function Dashboard() {
     { name: 'Enterprise', users: 1, fill: '#00308F' },
   ];
 
-  // 6 Primary PRD Section 19 Metric Cards
+  // Primary PRD Section 19 Metric Cards
   const stats = [
     { 
       label: 'Total Agencies', 
@@ -126,7 +127,7 @@ export function Dashboard() {
     { 
       label: 'Commission Generated', 
       value: commissionGenerated, 
-      subtext: `Monthly Platform Rev: ${monthlyRevenue}`,
+      subtext: `Monthly Rev: ${monthlyRevenue} • Subscriptions: ${subscriptionRevenue}`,
       icon: DollarSign, 
       color: '#00308F', 
       trend: '+22%', 

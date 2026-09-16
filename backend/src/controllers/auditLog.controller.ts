@@ -2,32 +2,26 @@ import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { AuditLog } from '../models/auditLog.model';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { AuditService } from '../services/audit.service';
 
 export const recordAuditLog = async (
   actorName: string,
   actorRole: string,
   action: string,
   target: string,
-  ipAddress: string = '103.22.180.4',
+  ipAddress: string = '127.0.0.1',
   status: 'Success' | 'Warning' | 'Error' = 'Success',
   details: Record<string, any> = {}
 ) => {
-  try {
-    const count = await AuditLog.count();
-    const logCode = `LOG-${7001 + count}`;
-    await AuditLog.create({
-      logCode,
-      actorName,
-      actorRole,
-      action,
-      target,
-      ipAddress,
-      status,
-      details,
-    });
-  } catch (err) {
-    console.warn('[Audit Log Record Warning]', err);
-  }
+  return AuditService.logAction({
+    actorName,
+    actorRole,
+    action,
+    target,
+    ipAddress,
+    status,
+    details,
+  });
 };
 
 export const getAuditLogs = async (req: Request, res: Response) => {

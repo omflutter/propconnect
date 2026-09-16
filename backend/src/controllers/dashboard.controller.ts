@@ -133,6 +133,20 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     };
 
     const stats = {
+      // PRD Section 19 Core Metrics
+      metrics: {
+        totalAgencies,
+        activeBrokers,
+        activeProperties,
+        publicProperties,
+        privateProperties,
+        collaborationRequests: totalCollabs,
+        activeDeals,
+        closedDeals,
+        commissionGenerated: formatINR(totalCommissionNum),
+        monthlyRevenue: formatINR(platformRevNum + subRevenueNum),
+        subscriptionRevenue: formatINR(subRevenueNum),
+      },
       agencies: {
         total: totalAgencies,
         active: activeAgencies,

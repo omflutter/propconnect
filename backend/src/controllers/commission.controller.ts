@@ -6,6 +6,7 @@ import { Settlement } from '../models/settlement.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { NotificationService } from '../services/notification.service';
+import { AuditService } from '../services/audit.service';
 
 /**
  * Fetch Commissions with Agency / Broker filtering & Super Admin support
@@ -151,6 +152,17 @@ export const updateCommission = async (req: Request, res: Response) => {
     if (brokerBAmount) comm.brokerBAmount = brokerBAmount;
 
     await comm.save();
+
+    // PRD Sec 18: Record Audit Log for Commission Updated
+    AuditService.logAction({
+      action: 'Commission Updated',
+      target: `Commission ${comm.commissionCode} (${comm.propertyName})`,
+      req,
+      actorName: comm.brokerAName || 'Agency Admin',
+      actorRole: 'Agency Admin',
+      details: { commissionId: comm.id, status: comm.status, totalCommission: comm.totalCommission },
+    }).catch(() => {});
+
     return successResponse(res, `Commission ${comm.commissionCode} updated`, comm);
   } catch (error: any) {
     return errorResponse(res, 'Failed to update commission', error.message || error);
@@ -255,6 +267,22 @@ export const createSettlement = async (req: Request, res: Response) => {
       actionRoute: '/commissions',
       metadata: { settlementId: settlement.id, settlementCode: settlement.settlementCode, amountReceived: settlement.amountReceived },
       channels: ['in_app', 'push'],
+    }).catch(() => {});
+
+    // PRD Sec 18: Record Audit Log for Payment Completed
+    AuditService.logAction({
+      action: 'Payment Completed',
+      target: `Settlement ${settlement.settlementCode} - ${settlement.amountReceived} (${settlement.paymentMethod})`,
+      req,
+      actorName: settlement.brokerName,
+      actorRole: 'Broker',
+      details: {
+        settlementId: settlement.id,
+        settlementCode: settlement.settlementCode,
+        amountReceived: settlement.amountReceived,
+        referenceNumber: settlement.referenceNumber,
+        status: settlement.status,
+      },
     }).catch(() => {});
 
     return successResponse(res, `Settlement ${settlement.settlementCode} recorded successfully`, settlement, 201);
