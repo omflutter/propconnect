@@ -40,14 +40,31 @@ export const getWhatsAppLogs = async (req: Request, res: Response) => {
  */
 export const sendTestWhatsAppMessage = async (req: Request, res: Response) => {
   try {
-    const { phoneNumber, message } = req.body;
+    const { phoneNumber, message, templateName } = req.body;
 
     if (!phoneNumber) {
       return errorResponse(res, 'Phone number is required', null, 400);
     }
 
-    const log = await WhatsAppService.sendTestMessage(phoneNumber, message);
-    return successResponse(res, `Test WhatsApp message sent to ${phoneNumber}`, log);
+    const { log, directWhatsAppUrl } = await WhatsAppService.sendTestMessage(phoneNumber, message, templateName);
+
+    if (log.status === 'Failed') {
+      return res.status(200).json({
+        success: false,
+        message: log.errorMessage || 'Interakt rejected template delivery. Meta requires pre-approved templates.',
+        data: {
+          ...(log.toJSON() as Record<string, any>),
+          directWhatsAppUrl,
+        },
+        directWhatsAppUrl,
+        error: log.errorMessage,
+      });
+    }
+
+    return successResponse(res, `Test WhatsApp message sent to ${phoneNumber}`, {
+      ...(log.toJSON() as Record<string, any>),
+      directWhatsAppUrl,
+    });
   } catch (error: any) {
     return errorResponse(res, 'Failed to send test WhatsApp message', error.message || error, 500);
   }
@@ -73,7 +90,7 @@ export const sendPropertyBrochure = async (req: Request, res: Response) => {
       return errorResponse(res, 'Recipient phone and property name are required', null, 400);
     }
 
-    const log = await WhatsAppService.sendPropertyBrochure({
+    const { log, directWhatsAppUrl } = await WhatsAppService.sendPropertyBrochure({
       recipientPhone,
       clientName,
       propertyName,
@@ -84,7 +101,23 @@ export const sendPropertyBrochure = async (req: Request, res: Response) => {
       brochureUrl,
     });
 
-    return successResponse(res, `Property brochure sent to ${recipientPhone} via WhatsApp`, log);
+    if (log.status === 'Failed') {
+      return res.status(200).json({
+        success: false,
+        message: log.errorMessage || 'Interakt rejected template delivery.',
+        data: {
+          ...(log.toJSON() as Record<string, any>),
+          directWhatsAppUrl,
+        },
+        directWhatsAppUrl,
+        error: log.errorMessage,
+      });
+    }
+
+    return successResponse(res, `Property brochure sent to ${recipientPhone} via WhatsApp`, {
+      ...(log.toJSON() as Record<string, any>),
+      directWhatsAppUrl,
+    });
   } catch (error: any) {
     return errorResponse(res, 'Failed to send property brochure', error.message || error, 500);
   }
@@ -96,13 +129,29 @@ export const sendPropertyBrochure = async (req: Request, res: Response) => {
 export const resendWhatsAppMessage = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const log = await WhatsAppService.resendMessage(id);
+    const result = await WhatsAppService.resendMessage(id);
 
-    if (!log) {
+    if (!result) {
       return errorResponse(res, `Message log ${id} not found`, null, 404);
     }
 
-    return successResponse(res, `Message ${id} resent successfully`, log);
+    if (result.log.status === 'Failed') {
+      return res.status(200).json({
+        success: false,
+        message: result.log.errorMessage || 'Resend rejected by Interakt/Meta',
+        data: {
+          ...(result.log.toJSON() as Record<string, any>),
+          directWhatsAppUrl: result.directWhatsAppUrl,
+        },
+        directWhatsAppUrl: result.directWhatsAppUrl,
+        error: result.log.errorMessage,
+      });
+    }
+
+    return successResponse(res, `Message ${id} resent successfully`, {
+      ...(result.log.toJSON() as Record<string, any>),
+      directWhatsAppUrl: result.directWhatsAppUrl,
+    });
   } catch (error: any) {
     return errorResponse(res, 'Failed to resend message', error.message || error, 500);
   }

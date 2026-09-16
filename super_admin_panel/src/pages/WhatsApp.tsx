@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Search, CheckCircle, Clock, Send, RefreshCw, 
-  X, Loader2, Code2, AlertCircle, ShieldCheck
+  X, Loader2, Code2, AlertCircle, ShieldCheck, ExternalLink, HelpCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiFetch } from '../services/api';
@@ -46,19 +46,28 @@ export function WhatsApp() {
 
   // Test Message Modal State
   const [showTestModal, setShowTestModal] = useState(false);
-  const [testPhone, setTestPhone] = useState('+91 98765 43210');
+  const [testPhone, setTestPhone] = useState('+91 78883 59070');
   const [testMessage, setTestMessage] = useState('Test notification ping from PropConnect Super Admin Console.');
+  const [selectedTemplateCode, setSelectedTemplateCode] = useState('wa_admin_ping_v1');
+  const [customTemplateCode, setCustomTemplateCode] = useState('');
   const [isSendingTest, setIsSendingTest] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   // Payload Viewer Modal
   const [selectedPayload, setSelectedPayload] = useState<{ title: string; data: any } | null>(null);
 
   const templates = [
-    { name: 'Property Share & Brochure', code: 'wa_prop_brochure_v1', category: 'Utility', status: 'Approved' },
-    { name: 'Collaboration Notification', code: 'wa_collab_req_v2', category: 'Transactional', status: 'Approved' },
-    { name: 'Deal Status Update', code: 'wa_deal_update_v1', category: 'Transactional', status: 'Approved' },
-    { name: 'Broker Welcome Onboarding', code: 'wa_broker_welcome_v1', category: 'Transactional', status: 'Approved' },
+    { name: 'Super Admin Test Ping', code: 'wa_admin_ping_v1', category: 'Utility', status: 'Interakt Meta Template', sample: 'Hello {{1}}, this is an alert from PropConnect: {{2}} at {{3}}.' },
+    { name: 'Property Share & Brochure', code: 'wa_prop_brochure_v1', category: 'Utility', status: 'Interakt Meta Template', sample: 'Hello {{1}}, here is the brochure for {{2}} in {{3}} priced at {{4}}. Link: {{5}}' },
+    { name: 'Collaboration Notification', code: 'wa_collab_req_v2', category: 'Transactional', status: 'Interakt Meta Template', sample: 'New collaboration request for property {{1}} from {{2}}.' },
+    { name: 'Deal Status Update', code: 'wa_deal_update_v1', category: 'Transactional', status: 'Interakt Meta Template', sample: 'Deal {{1}} status updated to {{2}}.' },
   ];
+
+  const getDirectWhatsAppUrl = (phone: string, text: string) => {
+    const cleaned = phone.replace(/[\s\-\(\)\+]/g, '');
+    const num = cleaned.startsWith('91') ? cleaned : `91${cleaned.replace(/^0+/, '')}`;
+    return `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
+  };
 
   const fetchStatusAndLogs = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -131,21 +140,25 @@ export function WhatsApp() {
     }
 
     setIsSendingTest(true);
+    const templateToSend = selectedTemplateCode === 'custom' ? customTemplateCode.trim() : selectedTemplateCode;
+
     try {
-      const res = await apiFetch('/whatsapp/send-test', {
+      const res = await apiFetch<any>('/whatsapp/send-test', {
         method: 'POST',
         body: JSON.stringify({
           phoneNumber: testPhone.trim(),
           message: testMessage.trim(),
+          templateName: templateToSend || 'wa_admin_ping_v1',
         }),
       });
 
       if (res.success) {
-        toast.success(`Test WhatsApp dispatched to ${testPhone}!`);
+        toast.success(`Test WhatsApp message dispatched to ${testPhone}!`);
         setShowTestModal(false);
         fetchStatusAndLogs(true);
       } else {
-        toast.error(res.message || 'Failed to dispatch test message');
+        toast.error(res.message || 'Interakt rejected template delivery.', { duration: 6000 });
+        fetchStatusAndLogs(true);
       }
     } catch (err: any) {
       toast.error(err.message || 'Network error');
@@ -228,11 +241,39 @@ export function WhatsApp() {
       {/* Approved Templates Grid */}
       <div className="card" style={{ padding: 20, marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ fontSize: 15 }}>Configured WhatsApp Templates</h3>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Meta Template Provider: <strong>Interakt WhatsApp BSP</strong>
-          </span>
+          <div>
+            <h3 style={{ fontSize: 15 }}>Configured WhatsApp Templates</h3>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Meta Template Provider: <strong>Interakt WhatsApp BSP</strong>
+            </span>
+          </div>
+          <button 
+            className="btn-secondary" 
+            style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            onClick={() => setShowGuide(!showGuide)}
+          >
+            <HelpCircle size={14} /> {showGuide ? 'Hide Meta Setup Guide' : 'How to Approve in Interakt?'}
+            {showGuide ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
         </div>
+
+        {showGuide && (
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16, fontSize: 12, color: '#334155' }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: 13, color: '#0f172a' }}>Why Meta requires template approval:</h4>
+            <p style={{ margin: '0 0 10px', lineHeight: 1.5 }}>
+              Under Meta’s WhatsApp Business API Policy, a business cannot dispatch automated messages to initiate a conversation with any phone without an approved template.
+              Interakt connects directly to Meta WhatsApp Cloud API.
+            </p>
+            <h4 style={{ margin: '0 0 6px', fontSize: 13, color: '#0f172a' }}>To register <code>wa_admin_ping_v1</code> in Interakt:</h4>
+            <ol style={{ paddingLeft: 18, margin: 0, lineHeight: 1.6 }}>
+              <li>Open your Interakt dashboard at <a href="https://app.interakt.ai/templates/create" target="_blank" rel="noreferrer" style={{ color: 'var(--primary-blue)', fontWeight: 600 }}>app.interakt.ai/templates/create <ExternalLink size={11} style={{ display: 'inline' }} /></a></li>
+              <li>Set Template Name: <code style={{ background: '#e2e8f0', padding: '2px 6px', borderRadius: 4 }}>wa_admin_ping_v1</code>, Category: <strong>Utility</strong>, Language: <strong>English</strong>.</li>
+              <li>Body Text: <code>Hello {'{{1}}'}, this is a verified notification from PropConnect: {'{{2}}'} at {'{{3}}'}.</code></li>
+              <li>Click <strong>Submit to Meta</strong> (approval typically completes within 2-5 minutes).</li>
+            </ol>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           {templates.map((t, i) => (
             <div key={i} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--background)' }}>
@@ -240,7 +281,8 @@ export function WhatsApp() {
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</span>
                 <span className="wa-template-chip">{t.status}</span>
               </div>
-              <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-secondary)' }}>{t.code}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{t.code}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.4 }}>{t.sample}</div>
             </div>
           ))}
         </div>
@@ -312,18 +354,30 @@ export function WhatsApp() {
                       <span className={`status-badge ${log.status === 'Read' ? 'closed' : log.status === 'Delivered' ? 'under-offer' : log.status === 'Sent' ? 'lead-assigned' : 'dropped'}`}>
                         {log.status}
                       </span>
+                      {log.errorMessage && log.status === 'Failed' && (
+                        <div style={{ fontSize: 10, color: '#dc2626', marginTop: 3, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.errorMessage}>
+                          {log.errorMessage}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div className="action-buttons">
                         <ActionDropdown 
                           actions={[
                             { 
-                              label: 'View Payload Logs', 
-                              onClick: () => setSelectedPayload({ title: `Payload: ${log.messageCode || log.id}`, data: log.payload || log }) 
+                              label: 'Open Direct in WhatsApp', 
+                              onClick: () => {
+                                const url = getDirectWhatsAppUrl(log.recipient, log.payload?.traits?.testMessage || `PropConnect: ${log.event}`);
+                                window.open(url, '_blank');
+                              }
                             },
                             { 
-                              label: 'Resend Message', 
+                              label: 'Resend via Interakt', 
                               onClick: () => handleResend(log.id) 
+                            },
+                            { 
+                              label: 'View Payload Logs', 
+                              onClick: () => setSelectedPayload({ title: `Payload: ${log.messageCode || log.id}`, data: log.payload || log }) 
                             },
                           ]}
                         />
@@ -348,7 +402,7 @@ export function WhatsApp() {
       {/* Send Test Message Modal */}
       {showTestModal && (
         <div className="modal-backdrop">
-          <div className="modal-content card" style={{ maxWidth: 460 }}>
+          <div className="modal-content card" style={{ maxWidth: 500 }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Send size={18} color="var(--primary-blue)" />
@@ -358,11 +412,17 @@ export function WhatsApp() {
                 <X size={18} />
               </button>
             </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: 12, fontSize: 12, color: '#0369a1' }}>
                 <ShieldCheck size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
-                Dispatches a live WhatsApp test ping via <strong>Interakt API</strong> (Business ID: {statusData?.businessId || '1433676617960236'}).
+                Connected to <strong>Interakt API</strong> (Business ID: {statusData?.businessId || '1433676617960236'}).
               </div>
+
+              <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 10, fontSize: 11, color: '#92400e', lineHeight: 1.4 }}>
+                <AlertCircle size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+                <strong>Meta Requirement:</strong> To deliver WhatsApp messages outside a 24h conversation window, Meta requires pre-approved templates in your Interakt dashboard. You can also use <strong>Open Direct WhatsApp</strong> below to message immediately without needing Meta template approval!
+              </div>
+
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Recipient Phone Number</label>
                 <input 
@@ -370,9 +430,38 @@ export function WhatsApp() {
                   className="form-input" 
                   value={testPhone} 
                   onChange={(e) => setTestPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 78883 59070"
                 />
               </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Interakt Meta Template</label>
+                <select 
+                  className="form-input" 
+                  value={selectedTemplateCode} 
+                  onChange={(e) => setSelectedTemplateCode(e.target.value)}
+                >
+                  <option value="wa_admin_ping_v1">wa_admin_ping_v1 (Super Admin Ping)</option>
+                  <option value="wa_prop_brochure_v1">wa_prop_brochure_v1 (Property Brochure)</option>
+                  <option value="wa_collab_req_v2">wa_collab_req_v2 (Collaboration Request)</option>
+                  <option value="wa_deal_update_v1">wa_deal_update_v1 (Deal Status Update)</option>
+                  <option value="custom">Custom Template (Type below)...</option>
+                </select>
+              </div>
+
+              {selectedTemplateCode === 'custom' && (
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Custom Template Name (Approved in Interakt)</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={customTemplateCode} 
+                    onChange={(e) => setCustomTemplateCode(e.target.value)}
+                    placeholder="e.g. welcome_message"
+                  />
+                </div>
+              )}
+
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Test Payload Note</label>
                 <textarea 
@@ -383,12 +472,23 @@ export function WhatsApp() {
                 />
               </div>
             </div>
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button className="btn-secondary" onClick={() => setShowTestModal(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleSendTest} disabled={isSendingTest}>
-                {isSendingTest ? <Loader2 className="spinning" size={14} style={{ marginRight: 6 }} /> : <Send size={14} style={{ marginRight: 6 }} />}
-                {isSendingTest ? 'Dispatching...' : 'Send WhatsApp Message'}
-              </button>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <a 
+                href={getDirectWhatsAppUrl(testPhone, testMessage)} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="btn-secondary" 
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#16a34a', borderColor: '#86efac', textDecoration: 'none' }}
+              >
+                <ExternalLink size={14} /> Open Direct WhatsApp
+              </a>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn-secondary" onClick={() => setShowTestModal(false)}>Cancel</button>
+                <button className="btn-primary" onClick={handleSendTest} disabled={isSendingTest}>
+                  {isSendingTest ? <Loader2 className="spinning" size={14} style={{ marginRight: 6 }} /> : <Send size={14} style={{ marginRight: 6 }} />}
+                  {isSendingTest ? 'Dispatching...' : 'Dispatch via Interakt'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

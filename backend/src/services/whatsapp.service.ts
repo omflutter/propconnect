@@ -168,6 +168,17 @@ export class WhatsAppService {
   }
 
   /**
+   * Generates a direct Click-to-Chat WhatsApp URL
+   * Instant fallback that requires no Meta template approval
+   */
+  public static generateDirectWhatsAppUrl(recipientPhone: string, text: string): string {
+    const { countryCode, phoneNumber } = this.cleanPhoneNumber(recipientPhone);
+    const cleanCountry = countryCode.replace('+', '');
+    const fullNumber = `${cleanCountry}${phoneNumber}`;
+    return `https://wa.me/${fullNumber}?text=${encodeURIComponent(text)}`;
+  }
+
+  /**
    * Primary orchestrator method to send a WhatsApp notification, index the user,
    * track the event, send the template, and record an outbound log.
    */
@@ -203,10 +214,9 @@ export class WhatsAppService {
 
       if (eventResult.id) {
         interaktId = eventResult.id;
-        status = 'Delivered';
       }
 
-      // 4. If template is specified, also call template message endpoint
+      // 4. If template is specified, call template message endpoint
       if (params.templateName) {
         const templateResult = await this.sendTemplateMessage(
           phoneNumber,
@@ -217,9 +227,25 @@ export class WhatsAppService {
           params.fileName
         );
         responsePayload.templateDispatch = templateResult;
-        if (templateResult.id) {
+
+        if (templateResult.success && templateResult.id) {
           interaktId = templateResult.id;
           status = 'Delivered';
+        } else {
+          status = 'Failed';
+          const interaktMsg = templateResult.data?.message || templateResult.error || `Template "${params.templateName}" not found or not approved by Meta`;
+          errorMessage = interaktMsg;
+          responsePayload.error = interaktMsg;
+        }
+      } else {
+        // If only event tracking without template dispatch
+        if (eventResult.success && eventResult.id) {
+          interaktId = eventResult.id;
+          status = 'Delivered';
+        } else {
+          status = 'Failed';
+          errorMessage = eventResult.error || 'Event track rejected by Interakt';
+          responsePayload.error = errorMessage;
         }
       }
     } catch (err: any) {
@@ -258,7 +284,7 @@ export class WhatsAppService {
     carpetArea?: string;
     brochureUrl?: string;
     photos?: string[];
-  }) {
+  }): Promise<{ log: WhatsAppLog; directWhatsAppUrl: string }> {
     const traits = {
       clientName: params.clientName || 'Valued Buyer',
       propertyName: params.propertyName,
@@ -269,7 +295,10 @@ export class WhatsAppService {
       brochureUrl: params.brochureUrl || 'https://propconnect-b89bd.web.app/brochure-preview',
     };
 
-    return await this.sendNotification({
+    const directText = `*${params.propertyName}*\n📍 Location: ${params.propertyLocation}\n💰 Price: ${params.propertyPrice}\n📐 Config: ${params.bhk || '3 BHK'} | ${params.carpetArea || '1,850 sqft'}\n📄 Brochure: ${params.brochureUrl || 'https://propconnect-b89bd.web.app'}`;
+    const directWhatsAppUrl = this.generateDirectWhatsAppUrl(params.recipientPhone, directText);
+
+    const log = await this.sendNotification({
       recipientPhone: params.recipientPhone,
       event: 'Property Brochure Shared',
       traits,
@@ -284,31 +313,39 @@ export class WhatsAppService {
       headerValues: params.brochureUrl ? [params.brochureUrl] : undefined,
       fileName: `${params.propertyName.replace(/\s+/g, '_')}_Brochure.pdf`,
     });
+
+    return { log, directWhatsAppUrl };
   }
 
   /**
    * Test Ping Message
    */
-  public static async sendTestMessage(recipientPhone: string, testMessage?: string) {
+  public static async sendTestMessage(recipientPhone: string, testMessage?: string, customTemplate?: string): Promise<{ log: WhatsAppLog; directWhatsAppUrl: string }> {
+    const templateName = customTemplate || 'wa_admin_ping_v1';
+    const msgText = testMessage || 'This is a live test notification from PropConnect WhatsApp Interakt integration.';
     const traits = {
-      testMessage: testMessage || 'This is a live test notification from PropConnect WhatsApp Interakt integration.',
+      testMessage: msgText,
       source: 'Super Admin Test Console',
       timestamp: new Date().toISOString(),
     };
 
-    return await this.sendNotification({
+    const directWhatsAppUrl = this.generateDirectWhatsAppUrl(recipientPhone, msgText);
+
+    const log = await this.sendNotification({
       recipientPhone,
       event: 'Super Admin Test Ping',
       traits,
-      templateName: 'wa_admin_ping_v1',
+      templateName,
       bodyValues: ['Super Admin', 'Test Ping Connection OK', new Date().toLocaleTimeString()],
     });
+
+    return { log, directWhatsAppUrl };
   }
 
   /**
    * Resend previously logged message
    */
-  public static async resendMessage(logId: number | string): Promise<WhatsAppLog | null> {
+  public static async resendMessage(logId: number | string): Promise<{ log: WhatsAppLog; directWhatsAppUrl: string } | null> {
     const existing = await WhatsAppLog.findOne({
       where: {
         [Op.or]: [{ id: isNaN(Number(logId)) ? -1 : Number(logId) }, { messageCode: String(logId) }],
@@ -317,13 +354,21 @@ export class WhatsAppService {
 
     if (!existing) return null;
 
-    return await this.sendNotification({
+    const directWhatsAppUrl = this.generateDirectWhatsAppUrl(
+      existing.recipient, 
+      existing.payload?.traits?.testMessage || `PropConnect Notification: ${existing.event}`
+    );
+
+    const log = await this.sendNotification({
       recipientPhone: existing.recipient,
       countryCode: existing.countryCode,
       event: existing.event,
       templateName: existing.templateName || undefined,
       traits: existing.payload?.traits || {},
+      bodyValues: existing.payload?.templateDispatch?.bodyValues || ['Super Admin', 'Resent Notification', new Date().toLocaleTimeString()],
     });
+
+    return { log, directWhatsAppUrl };
   }
 
   /**
