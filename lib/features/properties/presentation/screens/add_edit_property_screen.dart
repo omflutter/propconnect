@@ -1930,9 +1930,12 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
             children: [
               Icon(icon, color: AppColors.primaryBlue, size: 20),
               const Gap(8),
-              Text(
-                title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),

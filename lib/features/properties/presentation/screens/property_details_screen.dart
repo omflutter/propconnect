@@ -1060,32 +1060,41 @@ https://propconnect-b89bd.web.app/properties/${property.id}
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(7),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryBlue.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.tune_rounded, color: AppColors.primaryBlue, size: 18),
                                 ),
-                                child: const Icon(Icons.tune_rounded, color: AppColors.primaryBlue, size: 18),
-                              ),
-                              const Gap(10),
-                              const Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Property Specifications',
-                                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                const Gap(10),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Property Specifications',
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Verified physical & listing parameters',
+                                        style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    'Verified physical & listing parameters',
-                                    style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ),
+                          const Gap(8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
@@ -1133,32 +1142,41 @@ https://propconnect-b89bd.web.app/properties/${property.id}
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(7),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryBlue.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.pool_rounded, color: AppColors.primaryBlue, size: 18),
                                 ),
-                                child: const Icon(Icons.pool_rounded, color: AppColors.primaryBlue, size: 18),
-                              ),
-                              const Gap(10),
-                              const Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Amenities & Features',
-                                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                const Gap(10),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Amenities & Features',
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Lifestyle & building facilities',
+                                        style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    'Lifestyle & building facilities',
-                                    style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ),
+                          const Gap(8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
@@ -1224,18 +1242,24 @@ https://propconnect-b89bd.web.app/properties/${property.id}
                             child: const Icon(Icons.badge_rounded, color: AppColors.primaryBlue, size: 18),
                           ),
                           const Gap(10),
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Listing Broker & Agency',
-                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                              ),
-                              Text(
-                                'Direct contact & agency verification',
-                                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                              ),
-                            ],
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Listing Broker & Agency',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  'Direct contact & agency verification',
+                                  style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -1340,18 +1364,24 @@ https://propconnect-b89bd.web.app/properties/${property.id}
                             child: const Icon(Icons.article_rounded, color: AppColors.primaryBlue, size: 18),
                           ),
                           const Gap(10),
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'About This Property',
-                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                              ),
-                              Text(
-                                'Overview & broker notes',
-                                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                              ),
-                            ],
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'About This Property',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  'Overview & broker notes',
+                                  style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -1377,36 +1407,45 @@ https://propconnect-b89bd.web.app/properties/${property.id}
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(7),
-                                decoration: BoxDecoration(
-                                  color: isOwnAgencyProperty ? const Color(0xFF059669).withValues(alpha: 0.1) : AppColors.primaryBlue.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  isOwnAgencyProperty ? Icons.verified_user_rounded : Icons.shield_outlined,
-                                  color: isOwnAgencyProperty ? const Color(0xFF059669) : AppColors.primaryBlue,
-                                  size: 18,
-                                ),
-                              ),
-                              const Gap(10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isOwnAgencyProperty ? 'Owner Details & Confidential Data' : 'Owner Privacy Firewall',
-                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: isOwnAgencyProperty ? const Color(0xFF059669).withValues(alpha: 0.1) : AppColors.primaryBlue.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
-                                  Text(
-                                    isOwnAgencyProperty ? 'Exclusive internal agency records' : 'Protected under broker privacy matrix',
-                                    style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                  child: Icon(
+                                    isOwnAgencyProperty ? Icons.verified_user_rounded : Icons.shield_outlined,
+                                    color: isOwnAgencyProperty ? const Color(0xFF059669) : AppColors.primaryBlue,
+                                    size: 18,
                                   ),
-                                ],
-                              ),
-                            ],
+                                ),
+                                const Gap(10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isOwnAgencyProperty ? 'Owner Details & Confidential' : 'Owner Privacy Firewall',
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        isOwnAgencyProperty ? 'Exclusive internal agency records' : 'Protected under broker privacy matrix',
+                                        style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          const Gap(8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
@@ -1743,9 +1782,17 @@ https://propconnect-b89bd.web.app/properties/${property.id}
           children: [
             Icon(icon, color: isHighlight ? AppColors.primaryBlue : AppColors.iconColor, size: 18),
             const Gap(10),
-            Text(label, style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
-            const Spacer(),
-            Flexible(
+            Expanded(
+              flex: 4,
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Gap(8),
+            Expanded(
+              flex: 5,
               child: Text(
                 value,
                 textAlign: TextAlign.right,
@@ -1754,6 +1801,7 @@ https://propconnect-b89bd.web.app/properties/${property.id}
                   fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
                   color: isHighlight ? AppColors.primaryBlue : AppColors.textPrimary,
                 ),
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
