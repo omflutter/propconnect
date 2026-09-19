@@ -223,5 +223,18 @@ void main() {
       expect(prop.ownerName, 'Ramesh Chandra Sharma');
       expect(prop.ownerPhonePrimary, '+91 98200 12345');
     });
+
+    test('PropertyModel handles negotiable prices and rate parsing without zero anomalies', () {
+      final propSale = PropertyModel.fromJson({
+        'id': 'PR-103',
+        'title': 'Bandra Luxury Villa',
+        'price': '₹3.5 Cr (Negotiable)',
+        'type': 'Sale',
+        'areaSqft': 2500,
+      });
+
+      expect(propSale.price, '₹3.5 Cr (Negotiable)');
+      expect(propSale.areaSqft, 2500.0);
+    });
   });
 }

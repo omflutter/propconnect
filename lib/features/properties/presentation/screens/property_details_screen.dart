@@ -965,27 +965,37 @@ https://propconnect-b89bd.web.app/properties/${property.id}
                       // Price & Tag
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                property.price,
-                                style: const TextStyle(
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.primaryBlue,
-                                  letterSpacing: -0.5,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    property.price,
+                                    style: const TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.primaryBlue,
+                                      letterSpacing: -0.5,
+                                    ),
+                                    maxLines: 1,
+                                  ),
                                 ),
-                              ),
-                              const Gap(2),
-                              Text(
-                                _formatRatePerSqft(property),
-                                style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-                              ),
-                            ],
+                                const Gap(2),
+                                Text(
+                                  _formatRatePerSqft(property),
+                                  style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
+                          const Gap(10),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
@@ -1738,20 +1748,30 @@ https://propconnect-b89bd.web.app/properties/${property.id}
     if (property.areaSqft <= 0) return 'Price On Request';
     final raw = property.price.replaceAll(RegExp(r'[^0-9.]'), '');
     final numVal = double.tryParse(raw);
-    if (numVal == null) return 'Price On Request';
+    if (numVal == null || numVal <= 0) return 'Price On Request';
 
-    if (property.type.toLowerCase() == 'rent') {
-      final perSqftMonth = (numVal / property.areaSqft).round();
-      return '₹$perSqftMonth / sq.ft / mo';
+    final pLower = property.price.toLowerCase();
+    double totalRupees = numVal;
+    if (pLower.contains('cr')) {
+      totalRupees = numVal * 10000000;
+    } else if (pLower.contains('l') || pLower.contains('lac') || pLower.contains('lakh')) {
+      totalRupees = numVal * 100000;
+    } else if (pLower.contains('k')) {
+      totalRupees = numVal * 1000;
+    }
+
+    final isRent = property.type.toLowerCase().contains('rent') || property.purpose.toLowerCase().contains('rent');
+    if (isRent) {
+      final perSqftMonth = (totalRupees / property.areaSqft).round();
+      if (perSqftMonth <= 0) return 'Price On Request';
+      final formatted = perSqftMonth.toString().replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]},',
+      );
+      return '₹$formatted / sq.ft / mo';
     } else {
-      final pLower = property.price.toLowerCase();
-      double totalRupees = numVal;
-      if (pLower.contains('cr')) {
-        totalRupees = numVal * 10000000;
-      } else if (pLower.contains('l') || pLower.contains('lac') || pLower.contains('lakh')) {
-        totalRupees = numVal * 100000;
-      }
       final perSqft = (totalRupees / property.areaSqft).round();
+      if (perSqft <= 0) return 'Price On Request';
       final formatted = perSqft.toString().replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
         (m) => '${m[1]},',

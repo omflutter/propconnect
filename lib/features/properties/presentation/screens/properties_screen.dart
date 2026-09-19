@@ -1379,7 +1379,15 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(prop.price, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.primaryBlue)),
+                          Expanded(
+                            child: Text(
+                              prop.price,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.primaryBlue),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Gap(8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
@@ -1408,15 +1416,21 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              _buildFeatureIcon(Icons.king_bed_outlined, prop.bhk),
-                              const Gap(14),
-                              _buildFeatureIcon(Icons.bathtub_outlined, '${prop.bathrooms} Baths'),
-                              const Gap(14),
-                              _buildFeatureIcon(Icons.square_foot_outlined, '${prop.areaSqft} sqft'),
-                            ],
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  _buildFeatureIcon(Icons.king_bed_outlined, prop.bhk),
+                                  const Gap(14),
+                                  _buildFeatureIcon(Icons.bathtub_outlined, '${prop.bathrooms} Baths'),
+                                  const Gap(14),
+                                  _buildFeatureIcon(Icons.square_foot_outlined, '${prop.areaSqft} sqft'),
+                                ],
+                              ),
+                            ),
                           ),
+                          const Gap(6),
                           Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey.shade400),
                         ],
                       ),
@@ -1486,14 +1500,16 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 2,
                   children: [
                     Text(
                       '${cfg.platform} Feed Auto-Sync',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF15803D)),
                     ),
-                    const Gap(6),
-                    if (isLive) ...[
+                    if (isLive)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                         decoration: BoxDecoration(
@@ -1506,8 +1522,6 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                           style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF15803D)),
                         ),
                       ),
-                      const Gap(4),
-                    ],
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                       decoration: BoxDecoration(
@@ -1521,15 +1535,19 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                     ),
                   ],
                 ),
+                const Gap(2),
                 Text(
                   autoSync.isSyncing
                       ? 'Fetching live inventory from feed...'
                       : (isLive ? 'Live endpoint • Last synced $timeAgo' : 'Active • Last synced $timeAgo'),
-                  style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+                  style: TextStyle(fontSize: 10.5, color: Colors.green.shade700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          const Gap(8),
           TextButton.icon(
             onPressed: autoSync.isSyncing
                 ? null
@@ -1555,10 +1573,11 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                 : const Icon(Icons.sync, size: 14, color: Color(0xFF15803D)),
             label: Text(
               autoSync.isSyncing ? 'Syncing...' : 'Sync Now',
-              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF15803D)),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF15803D)),
             ),
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              visualDensity: VisualDensity.compact,
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
