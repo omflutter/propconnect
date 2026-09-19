@@ -274,14 +274,27 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
 
         // Add newly imported properties to state immediately
         if (res['data'] != null && res['data'] is List) {
-          final list = (res['data'] as List)
-              .map((item) => PropertyModel.fromJson(Map<String, dynamic>.from(item as Map)))
-              .toList();
-          ref.read(propertyProvider.notifier).addImportedProperties(list);
+          final list = <PropertyModel>[];
+          for (final item in (res['data'] as List)) {
+            try {
+              if (item is Map) {
+                list.add(PropertyModel.fromJson(Map<String, dynamic>.from(item)));
+              }
+            } catch (err) {
+              debugPrint('[AutoSync] Error parsing property: $err');
+            }
+          }
+          if (list.isNotEmpty) {
+            ref.read(propertyProvider.notifier).addImportedProperties(list);
+          }
         }
 
         // Fetch to ensure full sync with PostgreSQL
-        ref.read(propertyProvider.notifier).fetchProperties();
+        try {
+          ref.read(propertyProvider.notifier).fetchProperties();
+        } catch (e) {
+          debugPrint('[AutoSync] Non-blocking error refreshing property list: $e');
+        }
         return true;
       } else {
         state = state.copyWith(
@@ -331,7 +344,12 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
     }
 
     // 2. Real link: execute genuine live HTTP request
-    final uri = Uri.tryParse(cleanUrl);
+    var urlToFetch = cleanUrl;
+    if (!urlToFetch.startsWith('http://') && !urlToFetch.startsWith('https://')) {
+      urlToFetch = 'https://$urlToFetch';
+    }
+
+    final uri = Uri.tryParse(urlToFetch);
     if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
       return const FeedFetchResult(
         isRealFeed: true,
@@ -370,11 +388,19 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
         dynamic decoded;
         try {
           decoded = jsonDecode(bodyText);
-        } catch (_) {
-          return const FeedFetchResult(
+        } catch (jsonErr) {
+          if (bodyText.startsWith('<')) {
+            return const FeedFetchResult(
+              isRealFeed: true,
+              isSuccess: false,
+              errorMessage: 'Endpoint returned XML/HTML instead of JSON. Please supply a JSON API endpoint for feed sync.',
+              listings: [],
+            );
+          }
+          return FeedFetchResult(
             isRealFeed: true,
             isSuccess: false,
-            errorMessage: 'Response from endpoint is not valid JSON. Ensure endpoint returns JSON property listings.',
+            errorMessage: 'Response from endpoint is not valid JSON ($jsonErr). Ensure endpoint returns JSON property listings.',
             listings: [],
           );
         }
@@ -491,32 +517,41 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
         raw['typeOfProperty']?.toString() ??
         'Apartment';
 
+    // Safe integer parser helper
+    int safeInt(dynamic val, int defaultVal) {
+      if (val == null) return defaultVal;
+      if (val is int) return val;
+      if (val is num) return val.toInt();
+      final s = val.toString().replaceAll(',', '').trim();
+      final match = RegExp(r'(\d+)').firstMatch(s);
+      if (match != null) {
+        return int.tryParse(match.group(1)!) ?? defaultVal;
+      }
+      return defaultVal;
+    }
+
     // Area
-    final areaSqft = int.tryParse(raw['areaSqft']?.toString() ?? '') ??
-        int.tryParse(raw['area']?.toString() ?? '') ??
-        int.tryParse(raw['superArea']?.toString() ?? '') ??
-        int.tryParse(raw['carpetArea']?.toString() ?? '') ??
-        1200;
+    final areaSqft = safeInt(raw['areaSqft'] ?? raw['area'] ?? raw['superArea'] ?? raw['carpetArea'], 1200);
 
     // Bathrooms
-    final bathrooms = int.tryParse(raw['bathrooms']?.toString() ?? '') ??
-        int.tryParse(raw['baths']?.toString() ?? '') ??
-        2;
+    final bathrooms = safeInt(raw['bathrooms'] ?? raw['baths'], 2);
 
     // Balcony
-    final balcony = int.tryParse(raw['balcony']?.toString() ?? '') ??
-        int.tryParse(raw['balconies']?.toString() ?? '') ??
-        1;
+    final balcony = safeInt(raw['balcony'] ?? raw['balconies'], 1);
 
     // Parking
-    final parking = int.tryParse(raw['parking']?.toString() ?? '') ??
-        int.tryParse(raw['carParking']?.toString() ?? '') ??
-        1;
+    final parking = safeInt(raw['parking'] ?? raw['carParking'], 1);
 
     // Furnished
     final furnishedStatus = raw['furnishedStatus']?.toString() ??
         raw['furnishing']?.toString() ??
         'Semi-Furnished';
+
+    // Property Age
+    final propertyAge = raw['propertyAge']?.toString() ??
+        raw['ageOfProperty']?.toString() ??
+        raw['age']?.toString() ??
+        '1-5 Years';
 
     // Maintenance
     final maintenanceCharges = raw['maintenanceCharges']?.toString() ??
@@ -557,6 +592,7 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
       'balcony': balcony,
       'parking': parking,
       'furnishedStatus': furnishedStatus,
+      'propertyAge': propertyAge,
       'maintenanceCharges': maintenanceCharges,
       'amenities': amenities,
       'images': images,
@@ -578,6 +614,7 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
           'balcony': 1,
           'parking': 1,
           'furnishedStatus': 'Semi-Furnished',
+          'propertyAge': '1-5 Years',
           'maintenanceCharges': '₹5,500/mo',
           'amenities': ['Gym', 'Lift', 'Security', 'Power Backup'],
           'images': ['https://images.unsplash.com/photo-1556911220-e15b29be8c8f?q=80&w=1000'],
@@ -594,6 +631,7 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
           'balcony': 0,
           'parking': 2,
           'furnishedStatus': 'Fully Furnished',
+          'propertyAge': '0-1 Years',
           'maintenanceCharges': '₹10,000/mo',
           'amenities': ['Central AC', 'Conference Room', 'Power Backup', '24/7 Access'],
           'images': ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1000'],
@@ -613,6 +651,7 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
           'balcony': 2,
           'parking': 2,
           'furnishedStatus': 'Fully Furnished',
+          'propertyAge': '1-5 Years',
           'maintenanceCharges': '₹7,500/mo',
           'amenities': ['Lake View', 'Gym', 'Swimming Pool', '24/7 Security'],
           'images': ['https://images.unsplash.com/photo-1616594039964-ae9021a400a0?q=80&w=1000'],
@@ -632,6 +671,7 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
           'balcony': 2,
           'parking': 2,
           'furnishedStatus': 'Fully Furnished',
+          'propertyAge': '0-1 Years',
           'maintenanceCharges': '₹9,500/mo',
           'amenities': ['Private Elevator', 'Sea View', 'Gym', '24/7 Concierge'],
           'images': ['https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1000'],
@@ -648,6 +688,7 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
           'balcony': 3,
           'parking': 3,
           'furnishedStatus': 'Semi-Furnished',
+          'propertyAge': 'Under Construction',
           'maintenanceCharges': '₹15,000/mo',
           'amenities': ['Private Deck', 'Infinity Pool', 'Smart Home Automation'],
           'images': ['https://images.unsplash.com/photo-1600585154526-990dced4db0d?q=80&w=1000'],
@@ -667,6 +708,7 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
           'balcony': 2,
           'parking': 2,
           'furnishedStatus': 'Fully Furnished',
+          'propertyAge': '1-5 Years',
           'maintenanceCharges': '₹8,000/mo',
           'amenities': ['Sea View', 'Gym', 'Swimming Pool', '24/7 Security', 'Power Backup'],
           'images': ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1000'],
@@ -683,6 +725,7 @@ class AutoSyncNotifier extends Notifier<AutoSyncState> {
           'balcony': 3,
           'parking': 3,
           'furnishedStatus': 'Semi-Furnished',
+          'propertyAge': '5-10 Years',
           'maintenanceCharges': '₹12,000/mo',
           'amenities': ['Private Pool', 'Garden', 'Security', 'Club House', 'EV Charging'],
           'images': ['https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=1000'],

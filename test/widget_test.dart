@@ -150,5 +150,41 @@ void main() {
       final updated = notif.copyWith(isRead: true);
       expect(updated.isRead, true);
     });
+
+    test('PropertyModel parses string/dirty feeds safely without throwing subtype errors', () {
+      final dirtyFeedJson = {
+        'id': '99A-1234',
+        'title': '99acres Verified 3 BHK',
+        'location': 'Worli, Mumbai',
+        'price': '₹ 2.5 Cr',
+        'bhk': '3 BHK',
+        'type': 'Sale',
+        'propertyType': 'Apartment',
+        // String instead of int:
+        'propertyAge': '1-5 Years',
+        'areaSqft': '1,450 sq.ft',
+        'carpetArea': '1,200',
+        'bathrooms': '3 Baths',
+        'balcony': '2 Balconies',
+        'parking': '1 Covered',
+        'isPublic': 'true',
+        'amenities': 'Gym, Lift, Swimming Pool',
+      };
+
+      final prop = PropertyModel.fromJson(dirtyFeedJson);
+
+      expect(prop.title, '99acres Verified 3 BHK');
+      expect(prop.price, '₹ 2.5 Cr');
+      expect(prop.propertyAge, 1);
+      expect(prop.rawPropertyAge, '1-5 Years');
+      expect(prop.displayPropertyAge, '1-5 Years');
+      expect(prop.areaSqft, 1450.0);
+      expect(prop.carpetArea, 1200.0);
+      expect(prop.bathrooms, 3);
+      expect(prop.balcony, 2);
+      expect(prop.parking, 1);
+      expect(prop.isPublic, true);
+      expect(prop.amenities, ['Gym', 'Lift', 'Swimming Pool']);
+    });
   });
 }

@@ -290,95 +290,135 @@ export const importProperties = async (req: Request, res: Response) => {
     let createdCount = 0;
     let currentCount = await Property.count();
 
+    const parseSafeInt = (val: any, fallback = 0): number => {
+      if (val === null || val === undefined) return fallback;
+      if (typeof val === 'number') return isNaN(val) ? fallback : Math.floor(val);
+      const str = String(val).trim();
+      const match = str.match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        return isNaN(num) ? fallback : num;
+      }
+      return fallback;
+    };
+
+    const parseSafeFloat = (val: any, fallback = 0.0): number => {
+      if (val === null || val === undefined) return fallback;
+      if (typeof val === 'number') return isNaN(val) ? fallback : val;
+      const str = String(val).replace(/[^0-9.]/g, '').trim();
+      const num = parseFloat(str);
+      return isNaN(num) ? fallback : num;
+    };
+
+    const parseSafeStringList = (val: any, fallback: string[] = []): string[] => {
+      if (!val) return fallback;
+      if (Array.isArray(val)) return val.map((e) => String(e).trim()).filter(Boolean);
+      if (typeof val === 'string') {
+        const s = val.trim();
+        if (s.startsWith('[') && s.endsWith(']')) {
+          try {
+            const decoded = JSON.parse(s);
+            if (Array.isArray(decoded)) return decoded.map((e) => String(e).trim()).filter(Boolean);
+          } catch (_) {}
+        }
+        return s.split(',').map((e) => e.trim()).filter(Boolean);
+      }
+      return fallback;
+    };
+
     for (const item of importList) {
-      let existing: any = null;
-      if (item.propertyCode) {
-        existing = await Property.findOne({
-          where: { propertyCode: item.propertyCode, agencyId: targetAgencyId },
-        });
-      }
-      if (!existing && item.title) {
-        existing = await Property.findOne({
-          where: { title: item.title, agencyId: targetAgencyId },
-        });
-      }
+      try {
+        let existing: any = null;
+        if (item.propertyCode) {
+          existing = await Property.findOne({
+            where: { propertyCode: item.propertyCode, agencyId: targetAgencyId },
+          });
+        }
+        if (!existing && item.title) {
+          existing = await Property.findOne({
+            where: { title: item.title, agencyId: targetAgencyId },
+          });
+        }
 
-      if (existing) {
-        await existing.update({
-          price: item.price || existing.price,
-          location: item.location || existing.location,
-          status: item.status || existing.status,
-          images: item.images && item.images.length > 0 ? item.images : existing.images,
-          areaSqft: item.areaSqft ? parseFloat(item.areaSqft) : existing.areaSqft,
-          builtUpArea: item.builtUpArea ? parseFloat(item.builtUpArea) : existing.builtUpArea,
-          carpetArea: item.carpetArea ? parseFloat(item.carpetArea) : existing.carpetArea,
-          bathrooms: item.bathrooms !== undefined ? item.bathrooms : existing.bathrooms,
-          balcony: item.balcony !== undefined ? item.balcony : existing.balcony,
-          parking: item.parking !== undefined ? item.parking : existing.parking,
-          furnishedStatus: item.furnishedStatus || existing.furnishedStatus,
-          maintenanceCharges: item.maintenanceCharges || existing.maintenanceCharges,
-          amenities: item.amenities || existing.amenities,
-        });
-        syncedList.push(existing);
-        updatedCount++;
-      } else {
-        currentCount++;
-        const propertyCode =
-          item.propertyCode ||
-          `IMP-${platform ? platform.substring(0, 3).toUpperCase() : 'EXT'}-${100 + currentCount}`;
+        if (existing) {
+          await existing.update({
+            price: item.price !== undefined ? String(item.price) : existing.price,
+            location: item.location ? String(item.location) : existing.location,
+            status: item.status ? String(item.status) : existing.status,
+            images: item.images && item.images.length > 0 ? parseSafeStringList(item.images) : existing.images,
+            areaSqft: item.areaSqft !== undefined ? parseSafeFloat(item.areaSqft, existing.areaSqft) : existing.areaSqft,
+            builtUpArea: item.builtUpArea !== undefined ? parseSafeFloat(item.builtUpArea, existing.builtUpArea) : existing.builtUpArea,
+            carpetArea: item.carpetArea !== undefined ? parseSafeFloat(item.carpetArea, existing.carpetArea) : existing.carpetArea,
+            bathrooms: item.bathrooms !== undefined ? parseSafeInt(item.bathrooms, existing.bathrooms) : existing.bathrooms,
+            balcony: item.balcony !== undefined ? parseSafeInt(item.balcony, existing.balcony) : existing.balcony,
+            parking: item.parking !== undefined ? parseSafeInt(item.parking, existing.parking) : existing.parking,
+            furnishedStatus: item.furnishedStatus ? String(item.furnishedStatus) : existing.furnishedStatus,
+            maintenanceCharges: item.maintenanceCharges ? String(item.maintenanceCharges) : existing.maintenanceCharges,
+            amenities: item.amenities ? parseSafeStringList(item.amenities, existing.amenities) : existing.amenities,
+          });
+          syncedList.push(existing);
+          updatedCount++;
+        } else {
+          currentCount++;
+          const propertyCode =
+            item.propertyCode ||
+            `IMP-${platform ? platform.substring(0, 3).toUpperCase() : 'EXT'}-${100 + currentCount}`;
 
-        const purposeVal = item.purpose || item.type || 'Sale';
+          const purposeVal = String(item.purpose || item.type || 'Sale');
 
-        const created = await Property.create({
-          propertyCode,
-          title: item.title || `Imported ${item.propertyType || 'Property'}`,
-          description: item.description || '',
-          location: item.location || 'Mumbai, Maharashtra',
-          price: item.price || 'Price on Request',
-          bhk: item.bhk || '2 BHK',
-          type: purposeVal,
-          purpose: purposeVal,
-          propertyType: item.propertyType || 'Apartment',
-          areaSqft: item.areaSqft ? parseFloat(item.areaSqft) : 1200.0,
-          builtUpArea: item.builtUpArea ? parseFloat(item.builtUpArea) : (item.areaSqft ? parseFloat(item.areaSqft) : 1200.0),
-          carpetArea: item.carpetArea ? parseFloat(item.carpetArea) : 950.0,
-          status: 'Available',
-          isPublic: item.isPublic !== undefined ? Boolean(item.isPublic) : true,
-          agencyId: targetAgencyId,
-          agencyName: targetAgencyName,
-          brokerName: targetBrokerName,
-          bathrooms: item.bathrooms || 2,
-          balcony: item.balcony || 1,
-          parking: item.parking || 1,
-          furnishedStatus: item.furnishedStatus || 'Semi-Furnished',
-          propertyAge: item.propertyAge || '1-5 Years',
-          maintenanceCharges: item.maintenanceCharges || '₹3,500/mo',
-          securityDeposit: item.securityDeposit || '₹0',
-          negotiablePrice: item.negotiablePrice || '',
-          country: item.country || 'India',
-          state: item.state || 'Maharashtra',
-          city: item.city || 'Mumbai',
-          area: item.area || '',
-          address: item.address || '',
-          googleMapUrl: item.googleMapUrl || '',
-          latitude: item.latitude ? parseFloat(item.latitude) : 19.076,
-          longitude: item.longitude ? parseFloat(item.longitude) : 72.8777,
-          ownerName: item.ownerName || '',
-          ownerPhonePrimary: item.ownerPhonePrimary || '',
-          ownerPhoneSecondary: item.ownerPhoneSecondary || '',
-          ownerEmail: item.ownerEmail || '',
-          ownerAddress: item.ownerAddress || '',
-          ownerKycDocs: item.ownerKycDocs || [],
-          internalNotes: item.internalNotes || '',
-          amenities: item.amenities || ['Gym', 'Security', 'Lift'],
-          images: item.images || ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1000'],
-          floorPlans: item.floorPlans || [],
-          videos: item.videos || [],
-          documents: item.documents || [],
-        });
+          const created = await Property.create({
+            propertyCode,
+            title: String(item.title || `Imported ${item.propertyType || 'Property'}`),
+            description: String(item.description || ''),
+            location: String(item.location || 'Mumbai, Maharashtra'),
+            price: String(item.price || 'Price on Request'),
+            bhk: String(item.bhk || '2 BHK'),
+            type: purposeVal,
+            purpose: purposeVal,
+            propertyType: String(item.propertyType || 'Apartment'),
+            areaSqft: parseSafeFloat(item.areaSqft, 1200.0),
+            builtUpArea: parseSafeFloat(item.builtUpArea || item.areaSqft, 1200.0),
+            carpetArea: parseSafeFloat(item.carpetArea, 950.0),
+            status: 'Available',
+            isPublic: item.isPublic !== undefined ? Boolean(item.isPublic) : true,
+            agencyId: targetAgencyId,
+            agencyName: targetAgencyName,
+            brokerName: targetBrokerName,
+            bathrooms: parseSafeInt(item.bathrooms, 2),
+            balcony: parseSafeInt(item.balcony, 1),
+            parking: parseSafeInt(item.parking, 1),
+            furnishedStatus: String(item.furnishedStatus || 'Semi-Furnished'),
+            propertyAge: item.propertyAge ? String(item.propertyAge) : '1-5 Years',
+            maintenanceCharges: String(item.maintenanceCharges || '₹3,500/mo'),
+            securityDeposit: String(item.securityDeposit || '₹0'),
+            negotiablePrice: String(item.negotiablePrice || ''),
+            country: String(item.country || 'India'),
+            state: String(item.state || 'Maharashtra'),
+            city: String(item.city || 'Mumbai'),
+            area: String(item.area || ''),
+            address: String(item.address || ''),
+            googleMapUrl: String(item.googleMapUrl || ''),
+            latitude: parseSafeFloat(item.latitude, 19.076),
+            longitude: parseSafeFloat(item.longitude, 72.8777),
+            ownerName: String(item.ownerName || ''),
+            ownerPhonePrimary: String(item.ownerPhonePrimary || ''),
+            ownerPhoneSecondary: String(item.ownerPhoneSecondary || ''),
+            ownerEmail: String(item.ownerEmail || ''),
+            ownerAddress: String(item.ownerAddress || ''),
+            ownerKycDocs: parseSafeStringList(item.ownerKycDocs, []),
+            internalNotes: String(item.internalNotes || ''),
+            amenities: parseSafeStringList(item.amenities, ['Gym', 'Security', 'Lift']),
+            images: parseSafeStringList(item.images, ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1000']),
+            floorPlans: parseSafeStringList(item.floorPlans, []),
+            videos: parseSafeStringList(item.videos, []),
+            documents: parseSafeStringList(item.documents, []),
+          });
 
-        syncedList.push(created);
-        createdCount++;
+          syncedList.push(created);
+          createdCount++;
+        }
+      } catch (itemError) {
+        console.error('Error importing individual property item:', itemError);
       }
     }
 

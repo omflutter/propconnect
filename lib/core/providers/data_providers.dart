@@ -50,12 +50,21 @@ class PropertyNotifier extends Notifier<List<PropertyModel>> {
       ref.read(propertiesErrorProvider.notifier).setError(null);
 
       final res = await ApiService.get('/properties');
-      if (res['success'] == true && res['data'] != null) {
-        final list = (res['data'] as List)
-            .map((item) => PropertyModel.fromJson(item as Map<String, dynamic>))
-            .toList();
+      if (res['success'] == true && res['data'] != null && res['data'] is List) {
+        final list = <PropertyModel>[];
+        for (final item in (res['data'] as List)) {
+          try {
+            if (item is Map) {
+              list.add(PropertyModel.fromJson(Map<String, dynamic>.from(item)));
+            }
+          } catch (itemErr) {
+            // Safe fallback handles it, this prevents any rogue exception
+          }
+        }
         state = list;
-        await AuthStorageService.saveCachedProperties(list);
+        try {
+          await AuthStorageService.saveCachedProperties(list);
+        } catch (_) {}
         ref.read(isPropertiesLoadingProvider.notifier).setLoading(false);
         ref.read(propertiesErrorProvider.notifier).setError(null);
       } else {
@@ -82,17 +91,21 @@ class PropertyNotifier extends Notifier<List<PropertyModel>> {
 
   Future<bool> addProperty(PropertyModel property) async {
     state = [property, ...state];
-    await AuthStorageService.saveCachedProperties(state);
+    try {
+      await AuthStorageService.saveCachedProperties(state);
+    } catch (_) {}
 
     try {
       final res = await ApiService.post('/properties', property.toJson());
-      if (res['success'] == true && res['data'] != null) {
-        final created = PropertyModel.fromJson(res['data'] as Map<String, dynamic>);
-        state = [
-          created,
-          ...state.where((p) => p.id != property.id),
-        ];
-        await AuthStorageService.saveCachedProperties(state);
+      if (res['success'] == true && res['data'] != null && res['data'] is Map) {
+        try {
+          final created = PropertyModel.fromJson(Map<String, dynamic>.from(res['data'] as Map));
+          state = [
+            created,
+            ...state.where((p) => p.id != property.id),
+          ];
+          await AuthStorageService.saveCachedProperties(state);
+        } catch (_) {}
         return true;
       }
     } catch (_) {}

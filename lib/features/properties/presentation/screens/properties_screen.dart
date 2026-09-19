@@ -74,13 +74,26 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
 
       if (res['success'] == true) {
         if (res['data'] != null && res['data'] is List) {
-          final list = (res['data'] as List)
-              .map((item) => PropertyModel.fromJson(Map<String, dynamic>.from(item as Map)))
-              .toList();
-          ref.read(propertyProvider.notifier).addImportedProperties(list);
+          final list = <PropertyModel>[];
+          for (final item in (res['data'] as List)) {
+            try {
+              if (item is Map) {
+                list.add(PropertyModel.fromJson(Map<String, dynamic>.from(item)));
+              }
+            } catch (err) {
+              debugPrint('Error parsing imported item: $err');
+            }
+          }
+          if (list.isNotEmpty) {
+            ref.read(propertyProvider.notifier).addImportedProperties(list);
+          }
         }
 
-        await ref.read(propertyProvider.notifier).fetchProperties();
+        try {
+          await ref.read(propertyProvider.notifier).fetchProperties();
+        } catch (fetchErr) {
+          debugPrint('Error refetching properties: $fetchErr');
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

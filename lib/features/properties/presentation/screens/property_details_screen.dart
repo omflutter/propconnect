@@ -611,9 +611,7 @@ https://propconnect-b89bd.web.app/properties/${property.id}
     final parkingText = property.parking <= 0
         ? 'No Reserved Bay'
         : '${property.parking} Covered Bay${property.parking > 1 ? 's' : ''}';
-    final ageText = property.propertyAge <= 0
-        ? 'Brand New / Ready'
-        : '${property.propertyAge} Year${property.propertyAge > 1 ? 's' : ''} Old';
+    final ageText = property.displayPropertyAge;
     final maintenanceText = (property.maintenanceCharges.isEmpty || property.maintenanceCharges == '₹0')
         ? 'Included / Zero'
         : property.maintenanceCharges;
