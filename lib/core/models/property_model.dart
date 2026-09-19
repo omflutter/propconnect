@@ -45,6 +45,7 @@ class PropertyModel {
   final List<String> documents;
 
   // PRD Owner Info & KYC (Protected by Privacy Matrix)
+  final int? ownerId;
   final String ownerName;
   final String ownerPhonePrimary;
   final String ownerPhoneSecondary;
@@ -64,15 +65,15 @@ class PropertyModel {
     required this.bhk,
     required this.type,
     this.purpose = 'Sale',
-    required this.isPublic,
+    this.isPublic = false,
     this.agencyId,
     required this.agencyName,
     required this.propertyType,
     required this.status,
     required this.brokerName,
     this.country = 'India',
-    this.stateName = '',
-    this.city = '',
+    this.stateName = 'Maharashtra',
+    this.city = 'Mumbai',
     this.area = '',
     this.address = '',
     this.googleMapUrl = '',
@@ -89,6 +90,7 @@ class PropertyModel {
     required this.images,
     this.floorPlans = const [],
     this.documents = const [],
+    this.ownerId,
     this.ownerName = '',
     this.ownerPhonePrimary = '',
     this.ownerPhoneSecondary = '',
@@ -235,6 +237,7 @@ class PropertyModel {
         images: _parseStringList(json['images']),
         floorPlans: _parseStringList(json['floorPlans']),
         documents: _parseStringList(json['documents']),
+        ownerId: _parseInt(json['ownerId'] ?? json['owner_id'], 0) == 0 ? null : _parseInt(json['ownerId'] ?? json['owner_id']),
         ownerName: _parseString(json['ownerName'], ''),
         ownerPhonePrimary: _parseString(json['ownerPhonePrimary'], ''),
         ownerPhoneSecondary: _parseString(json['ownerPhoneSecondary'], ''),
@@ -307,6 +310,7 @@ class PropertyModel {
       'images': images,
       'floorPlans': floorPlans,
       'documents': documents,
+      if (ownerId != null) 'ownerId': ownerId,
       'ownerName': ownerName,
       'ownerPhonePrimary': ownerPhonePrimary,
       'ownerPhoneSecondary': ownerPhoneSecondary,

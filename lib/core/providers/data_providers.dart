@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/property_model.dart';
 import '../models/deal_model.dart';
 import '../models/commission_model.dart';
+import '../models/owner_model.dart';
 import '../network/api_service.dart';
 import '../services/firestore_chat_service.dart';
 import '../services/auth_storage_service.dart';
@@ -472,6 +473,71 @@ class UnreadNotificationsNotifier extends Notifier<int> {
 
 final unreadNotificationsProvider = NotifierProvider<UnreadNotificationsNotifier, int>(() {
   return UnreadNotificationsNotifier();
+});
+
+class OwnerNotifier extends Notifier<List<OwnerModel>> {
+  @override
+  List<OwnerModel> build() {
+    fetchOwners();
+    return [];
+  }
+
+  Future<void> fetchOwners([String? search]) async {
+    try {
+      final endpoint = search != null && search.trim().isNotEmpty
+          ? '/owners?q=${Uri.encodeComponent(search.trim())}'
+          : '/owners';
+      final res = await ApiService.get(endpoint);
+      if (res['success'] == true && res['data'] is List) {
+        final List<OwnerModel> list = [];
+        for (final item in (res['data'] as List)) {
+          list.add(OwnerModel.fromJson(Map<String, dynamic>.from(item)));
+        }
+        state = list;
+      }
+    } catch (_) {}
+  }
+
+  Future<OwnerModel?> addOwner(Map<String, dynamic> data) async {
+    try {
+      final res = await ApiService.post('/owners', data);
+      if (res['success'] == true && res['data'] is Map) {
+        final newOwner = OwnerModel.fromJson(Map<String, dynamic>.from(res['data']));
+        state = [
+          newOwner,
+          ...state.where((o) => o.id != newOwner.id),
+        ];
+        return newOwner;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<bool> updateOwner(int id, Map<String, dynamic> data) async {
+    try {
+      final res = await ApiService.put('/owners/$id', data);
+      if (res['success'] == true) {
+        await fetchOwners();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<bool> deleteOwner(int id) async {
+    try {
+      final res = await ApiService.delete('/owners/$id');
+      if (res['success'] == true) {
+        state = state.where((o) => o.id != id).toList();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+}
+
+final ownerProvider = NotifierProvider<OwnerNotifier, List<OwnerModel>>(() {
+  return OwnerNotifier();
 });
 
 

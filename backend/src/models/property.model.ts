@@ -1,5 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import { sequelize } from '../config/database';
+import { Owner } from './owner.model';
 
 export class Property extends Model {
   declare id: number;
@@ -40,6 +41,7 @@ export class Property extends Model {
   declare longitude: number;
 
   // Owner Information & Privacy
+  declare ownerId: number | null;
   declare ownerName: string;
   declare ownerPhonePrimary: string;
   declare ownerPhoneSecondary: string;
@@ -200,6 +202,10 @@ Property.init(
       type: DataTypes.FLOAT,
       defaultValue: 72.8777,
     },
+    ownerId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     ownerName: {
       type: DataTypes.STRING,
       defaultValue: '',
@@ -254,3 +260,7 @@ Property.init(
     tableName: 'properties',
   }
 );
+
+Owner.hasMany(Property, { foreignKey: 'ownerId', as: 'properties' });
+Property.belongsTo(Owner, { foreignKey: 'ownerId', as: 'owner' });
+

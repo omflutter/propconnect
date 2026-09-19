@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:propconnect/core/models/commission_model.dart';
 import 'package:propconnect/core/models/deal_model.dart';
 import 'package:propconnect/core/models/property_model.dart';
+import 'package:propconnect/core/models/owner_model.dart';
 import 'package:propconnect/features/notifications/domain/models/notification_model.dart';
 
 void main() {
@@ -185,6 +186,42 @@ void main() {
       expect(prop.parking, 1);
       expect(prop.isPublic, true);
       expect(prop.amenities, ['Gym', 'Lift', 'Swimming Pool']);
+    });
+
+    test('OwnerModel and PropertyModel ownerId directory linkage', () {
+      final ownerJson = {
+        'id': 14,
+        'agencyId': 1,
+        'name': 'Ramesh Chandra Sharma',
+        'phonePrimary': '+91 98200 12345',
+        'phoneSecondary': '+91 98200 54321',
+        'email': 'ramesh@sharmaholdings.com',
+        'address': 'Flat 1204, Sea Breeze, Worli, Mumbai',
+        'idType': 'Aadhaar',
+        'idNumber': 'XXXX-XXXX-1234',
+        'notes': 'Prefers morning calls between 10am-12pm',
+        'propertyCount': 3,
+        'createdAt': '2026-09-19T10:00:00.000Z',
+      };
+
+      final owner = OwnerModel.fromJson(ownerJson);
+      expect(owner.id, 14);
+      expect(owner.name, 'Ramesh Chandra Sharma');
+      expect(owner.phonePrimary, '+91 98200 12345');
+      expect(owner.email, 'ramesh@sharmaholdings.com');
+      expect(owner.propertyCount, 3);
+
+      final propJson = {
+        'id': 'PR-102',
+        'title': 'Worli 4BHK Penthouse',
+        'ownerId': 14,
+        'ownerName': owner.name,
+        'ownerPhonePrimary': owner.phonePrimary,
+      };
+      final prop = PropertyModel.fromJson(propJson);
+      expect(prop.ownerId, 14);
+      expect(prop.ownerName, 'Ramesh Chandra Sharma');
+      expect(prop.ownerPhonePrimary, '+91 98200 12345');
     });
   });
 }

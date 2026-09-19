@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { Op } from 'sequelize';
 import { Property } from '../models/property.model';
+import { Owner } from '../models/owner.model';
 import { Agency } from '../models/agency.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
@@ -186,6 +187,35 @@ export const createProperty = async (req: Request, res: Response) => {
 
     const purposeVal = req.body.purpose || req.body.type || 'Sale';
 
+    // Resolve ownerId or auto-upsert in Owner directory
+    let resolvedOwnerId = req.body.ownerId ? parseInt(String(req.body.ownerId), 10) : null;
+    const rawOwnerName = (req.body.ownerName || '').trim();
+    const rawOwnerPhone = (req.body.ownerPhonePrimary || '').trim();
+    if (!resolvedOwnerId && rawOwnerName && rawOwnerPhone) {
+      try {
+        const [ownerRecord] = await Owner.findOrCreate({
+          where: {
+            agencyId: targetAgencyId,
+            name: rawOwnerName,
+            phonePrimary: rawOwnerPhone,
+          },
+          defaults: {
+            agencyId: targetAgencyId,
+            name: rawOwnerName,
+            phonePrimary: rawOwnerPhone,
+            phoneSecondary: (req.body.ownerPhoneSecondary || '').trim(),
+            email: (req.body.ownerEmail || '').trim(),
+            address: (req.body.ownerAddress || '').trim(),
+            notes: (req.body.internalNotes || '').trim(),
+            kycDocs: req.body.ownerKycDocs || [],
+          },
+        });
+        resolvedOwnerId = ownerRecord.id;
+      } catch (err) {
+        console.warn('Auto owner creation note:', err);
+      }
+    }
+
     const property = await Property.create({
       propertyCode,
       title,
@@ -220,6 +250,7 @@ export const createProperty = async (req: Request, res: Response) => {
       googleMapUrl: req.body.googleMapUrl || '',
       latitude: req.body.latitude ? parseFloat(req.body.latitude) : 19.076,
       longitude: req.body.longitude ? parseFloat(req.body.longitude) : 72.8777,
+      ownerId: resolvedOwnerId,
       ownerName: req.body.ownerName || '',
       ownerPhonePrimary: req.body.ownerPhonePrimary || '',
       ownerPhoneSecondary: req.body.ownerPhoneSecondary || '',
@@ -532,6 +563,7 @@ export const updateProperty = async (req: Request, res: Response) => {
     if (req.body.googleMapUrl !== undefined) property.googleMapUrl = req.body.googleMapUrl;
     if (req.body.latitude !== undefined) property.latitude = parseFloat(req.body.latitude);
     if (req.body.longitude !== undefined) property.longitude = parseFloat(req.body.longitude);
+    if (req.body.ownerId !== undefined) property.ownerId = req.body.ownerId ? parseInt(String(req.body.ownerId), 10) : null;
     if (req.body.ownerName !== undefined) property.ownerName = req.body.ownerName;
     if (req.body.ownerPhonePrimary !== undefined) property.ownerPhonePrimary = req.body.ownerPhonePrimary;
     if (req.body.ownerPhoneSecondary !== undefined) property.ownerPhoneSecondary = req.body.ownerPhoneSecondary;

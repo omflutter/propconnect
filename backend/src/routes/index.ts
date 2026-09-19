@@ -14,6 +14,7 @@ import commissionRoutes from './commission.routes';
 import whatsappRoutes from './whatsapp.routes';
 import notificationRoutes from './notification.routes';
 import uploadRoutes from './upload.routes';
+import ownerRoutes from './owner.routes';
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.use(brokerRoutes);
 router.use(auditLogRoutes);
 router.use(dashboardRoutes);
 router.use('/properties', propertyRoutes);
+router.use('/owners', ownerRoutes);
 router.use(chatRoutes);
 router.use(dealRoutes);
 router.use(collaborationRoutes);

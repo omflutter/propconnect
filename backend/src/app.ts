@@ -38,6 +38,7 @@ app.use(async (req, res, next) => {
   if (!isDbInitialized) {
     try {
       await sequelize.sync();
+      await sequelize.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS "ownerId" INTEGER;');
       await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayKeyId" VARCHAR(255) DEFAULT \'rzp_live_89123849102934\';');
       await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayKeySecret" VARCHAR(255) DEFAULT \'rzp_sec_99182391028349\';');
       await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayWebhookSecret" VARCHAR(255) DEFAULT \'whsec_rzp_live_109283\';');

@@ -31,6 +31,7 @@ import 'package:propconnect/features/chat/presentation/screens/chat_details_scre
 import 'package:propconnect/features/subscription/presentation/screens/subscription_screen.dart';
 import 'package:propconnect/features/profile/presentation/screens/my_profile_screen.dart';
 import 'package:propconnect/features/properties/presentation/screens/add_edit_property_screen.dart';
+import 'package:propconnect/features/owners/presentation/screens/owners_screen.dart';
 
 // Keys for StatefulShellRoute branches
 final _shellNavigatorHomeKey = GlobalKey<NavigatorState>(debugLabel: 'shellHome');
@@ -67,6 +68,7 @@ class AppRouter {
   static const String createAgency = '/create-agency';
   static const String subscription = '/subscription';
   static const String profile = '/profile';
+  static const String owners = '/owners';
   static const String brokerDetails = '/broker-details/:id';
   static const String propertyDetails = '/property-details/:id';
   static const String collaborations = '/collaborations';
@@ -137,6 +139,10 @@ class AppRouter {
       GoRoute(
         path: profile,
         builder: (context, state) => const MyProfileScreen(),
+      ),
+      GoRoute(
+        path: owners,
+        builder: (context, state) => const OwnersScreen(),
       ),
       GoRoute(
         path: brokerDetails,

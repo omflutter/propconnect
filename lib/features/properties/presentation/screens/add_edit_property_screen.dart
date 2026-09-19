@@ -62,6 +62,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
   String _propertyAge = '1-5 Years'; // 'Ready to Move', '0-1 Year', '1-5 Years', '5-10 Years', '10+ Years'
 
   // 5. Owner Info & KYC (Protected by Privacy Firewall)
+  int? _selectedOwnerId;
   late TextEditingController _ownerNameCtrl;
   late TextEditingController _ownerPhonePrimaryCtrl;
   late TextEditingController _ownerPhoneSecondaryCtrl;
@@ -193,6 +194,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     _furnishedStatus = existingProp?.furnishedStatus ?? 'Semi-Furnished';
     _isPublic = existingProp?.isPublic ?? false;
 
+    _selectedOwnerId = existingProp?.ownerId;
     _ownerNameCtrl = TextEditingController(text: existingProp?.ownerName ?? '');
     _ownerPhonePrimaryCtrl = TextEditingController(text: existingProp?.ownerPhonePrimary ?? '');
     _ownerPhoneSecondaryCtrl = TextEditingController(text: existingProp?.ownerPhoneSecondary ?? '');
@@ -827,6 +829,351 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     );
   }
 
+  void _showSelectOwnerModal() {
+    final owners = ref.read(ownerProvider);
+    String search = '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final filtered = owners.where((o) {
+            if (search.isEmpty) return true;
+            final q = search.toLowerCase();
+            return o.name.toLowerCase().contains(q) ||
+                o.phonePrimary.toLowerCase().contains(q) ||
+                o.email.toLowerCase().contains(q);
+          }).toList();
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const Gap(16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Select Property Owner',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const Text(
+                  'Choose from your registered agency property owners directory.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const Gap(14),
+                TextField(
+                  onChanged: (v) => setModalState(() => search = v.trim()),
+                  decoration: InputDecoration(
+                    hintText: 'Search by name or phone...',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    filled: true,
+                    fillColor: const Color(0xFFF1F5F9),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                ),
+                const Gap(12),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.person_search, size: 48, color: Colors.grey[400]),
+                              const Gap(8),
+                              const Text('No matching owners found.', style: TextStyle(color: AppColors.textSecondary)),
+                              const Gap(12),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  _showQuickAddOwnerModal();
+                                },
+                                icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                                label: const Text('Add New Owner', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlue),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (context, index) => const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                            final owner = filtered[i];
+                            final isSelected = _selectedOwnerId == owner.id;
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: isSelected ? AppColors.primaryBlue : const Color(0xFFEFF6FF),
+                                child: Text(
+                                  owner.name.isNotEmpty ? owner.name[0].toUpperCase() : 'O',
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : AppColors.primaryBlue,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              title: Text(owner.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                              subtitle: Text(
+                                '${owner.phonePrimary} • ${owner.propertyCount} ${owner.propertyCount == 1 ? 'property' : 'properties'}',
+                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                              trailing: isSelected
+                                  ? const Icon(Icons.check_circle, color: Color(0xFF059669))
+                                  : const Icon(Icons.chevron_right, size: 18),
+                              onTap: () {
+                                setState(() {
+                                  _selectedOwnerId = owner.id;
+                                  _ownerNameCtrl.text = owner.name;
+                                  _ownerPhonePrimaryCtrl.text = owner.phonePrimary;
+                                  _ownerPhoneSecondaryCtrl.text = owner.phoneSecondary;
+                                  _ownerEmailCtrl.text = owner.email;
+                                  _ownerAddressCtrl.text = owner.address;
+                                  _internalNotesCtrl.text = owner.notes;
+                                });
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Owner "${owner.name}" selected and details populated.'),
+                                    backgroundColor: const Color(0xFF059669),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showQuickAddOwnerModal() {
+    final nameCtrl = TextEditingController(text: _ownerNameCtrl.text);
+    final phoneCtrl = TextEditingController(text: _ownerPhonePrimaryCtrl.text);
+    final phoneSecCtrl = TextEditingController(text: _ownerPhoneSecondaryCtrl.text);
+    final emailCtrl = TextEditingController(text: _ownerEmailCtrl.text);
+    final addressCtrl = TextEditingController(text: _ownerAddressCtrl.text);
+    final notesCtrl = TextEditingController(text: _internalNotesCtrl.text);
+    final formKey = GlobalKey<FormState>();
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              top: 20,
+              left: 20,
+              right: 20,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const Gap(16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Add & Assign New Owner',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const Text(
+                      'Creates an owner in your agency directory and links them to this property.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const Gap(14),
+                    TextFormField(
+                      controller: nameCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Owner Full Name *',
+                        prefixIcon: const Icon(Icons.person_outline, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Owner name is required' : null,
+                    ),
+                    const Gap(12),
+                    TextFormField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'Primary Phone *',
+                        prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Phone is required' : null,
+                    ),
+                    const Gap(12),
+                    TextFormField(
+                      controller: phoneSecCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'Secondary Phone',
+                        prefixIcon: const Icon(Icons.phone_iphone_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                      ),
+                    ),
+                    const Gap(12),
+                    TextFormField(
+                      controller: emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'Email Address',
+                        prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                      ),
+                    ),
+                    const Gap(12),
+                    TextFormField(
+                      controller: addressCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Registered Address',
+                        prefixIcon: const Icon(Icons.home_work_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                      ),
+                    ),
+                    const Gap(12),
+                    TextFormField(
+                      controller: notesCtrl,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        labelText: 'Private Notes',
+                        prefixIcon: const Icon(Icons.notes_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                      ),
+                    ),
+                    const Gap(20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                if (!formKey.currentState!.validate()) return;
+                                setModalState(() => isSaving = true);
+
+                                final userData = AuthStorageService.getUserData();
+                                final agencyId = userData?['agencyId'] ?? (userData?['agency'] is Map ? userData!['agency']['id'] : 1);
+
+                                final newOwner = await ref.read(ownerProvider.notifier).addOwner({
+                                  'agencyId': agencyId,
+                                  'name': nameCtrl.text.trim(),
+                                  'phonePrimary': phoneCtrl.text.trim(),
+                                  'phoneSecondary': phoneSecCtrl.text.trim(),
+                                  'email': emailCtrl.text.trim(),
+                                  'address': addressCtrl.text.trim(),
+                                  'notes': notesCtrl.text.trim(),
+                                });
+
+                                if (!ctx.mounted) return;
+                                if (newOwner != null) {
+                                  setState(() {
+                                    _selectedOwnerId = newOwner.id;
+                                    _ownerNameCtrl.text = newOwner.name;
+                                    _ownerPhonePrimaryCtrl.text = newOwner.phonePrimary;
+                                    _ownerPhoneSecondaryCtrl.text = newOwner.phoneSecondary;
+                                    _ownerEmailCtrl.text = newOwner.email;
+                                    _ownerAddressCtrl.text = newOwner.address;
+                                    _internalNotesCtrl.text = newOwner.notes;
+                                  });
+                                  Navigator.pop(ctx);
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Owner "${newOwner.name}" created and assigned to listing.'),
+                                      backgroundColor: const Color(0xFF059669),
+                                    ),
+                                  );
+                                }
+                              },
+                        child: isSaving
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('Save & Assign Owner', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _saveProperty() async {
     if (_formKey.currentState!.validate()) {
       final userData = AuthStorageService.getUserData();
@@ -882,6 +1229,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
         maintenanceCharges: maintenanceStr,
         amenities: _selectedAmenities,
         images: _propertyImages,
+        ownerId: _selectedOwnerId,
         ownerName: _ownerNameCtrl.text.trim(),
         ownerPhonePrimary: _ownerPhonePrimaryCtrl.text.trim(),
         ownerPhoneSecondary: _ownerPhoneSecondaryCtrl.text.trim(),
@@ -1758,6 +2106,139 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                     ),
                   ),
                   const Gap(16),
+
+                  // Owner Directory Quick Link Toolbar
+                  if (_selectedOwnerId != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 24),
+                          const Gap(12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Text(
+                                      'Linked to Owner Directory',
+                                      style: TextStyle(
+                                        color: Color(0xFF065F46),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                    Gap(6),
+                                    Icon(Icons.verified, color: Color(0xFF059669), size: 14),
+                                  ],
+                                ),
+                                const Gap(2),
+                                Text(
+                                  _ownerNameCtrl.text.isNotEmpty ? _ownerNameCtrl.text : 'ID: #$_selectedOwnerId',
+                                  style: const TextStyle(
+                                    color: Color(0xFF047857),
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _showSelectOwnerModal,
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF065F46),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Change', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 18, color: Color(0xFF059669)),
+                            tooltip: 'Unlink Owner',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () {
+                              setState(() {
+                                _selectedOwnerId = null;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.people_outline, color: AppColors.primaryBlue, size: 18),
+                              Gap(8),
+                              Text(
+                                'Agency Owner Directory',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                              ),
+                            ],
+                          ),
+                          const Gap(4),
+                          const Text(
+                            'Select from your registered owners to auto-fill details, or register a new one.',
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                          const Gap(10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _showSelectOwnerModal,
+                                  icon: const Icon(Icons.person_search_outlined, size: 16),
+                                  label: const Text('Choose Owner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.primaryBlue,
+                                    side: const BorderSide(color: AppColors.primaryBlue),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                  ),
+                                ),
+                              ),
+                              const Gap(8),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _showQuickAddOwnerModal,
+                                  icon: const Icon(Icons.person_add_alt_1, size: 16, color: Colors.white),
+                                  label: const Text('New Owner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primaryBlue,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
                   TextFormField(
                     controller: _ownerNameCtrl,
                     decoration: InputDecoration(
