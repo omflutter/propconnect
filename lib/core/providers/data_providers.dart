@@ -52,10 +52,16 @@ class PropertyNotifier extends Notifier<List<PropertyModel>> {
       final res = await ApiService.get('/properties');
       if (res['success'] == true && res['data'] != null && res['data'] is List) {
         final list = <PropertyModel>[];
+        final seenKeys = <String>{};
         for (final item in (res['data'] as List)) {
           try {
             if (item is Map) {
-              list.add(PropertyModel.fromJson(Map<String, dynamic>.from(item)));
+              final prop = PropertyModel.fromJson(Map<String, dynamic>.from(item));
+              final key = prop.id.isNotEmpty ? 'id:${prop.id}' : 'title:${prop.title.trim().toLowerCase()}';
+              if (!seenKeys.contains(key)) {
+                seenKeys.add(key);
+                list.add(prop);
+              }
             }
           } catch (itemErr) {
             // Safe fallback handles it, this prevents any rogue exception
@@ -128,9 +134,18 @@ class PropertyNotifier extends Notifier<List<PropertyModel>> {
   void addImportedProperties(List<PropertyModel> imported) {
     final updatedList = List<PropertyModel>.from(state);
     for (final item in imported) {
-      final index = updatedList.indexWhere(
-        (p) => p.id == item.id || (p.title.trim().toLowerCase() == item.title.trim().toLowerCase() && p.agencyName == item.agencyName),
-      );
+      final itemTitle = item.title.trim().toLowerCase();
+      final itemCore = itemTitle.replaceAll(RegExp(r'^(99acres|magicbricks|housing(\.com)?|custom\s*feed)[^:]*:\s*', caseSensitive: false), '').trim();
+
+      final index = updatedList.indexWhere((p) {
+        if (p.id.isNotEmpty && item.id.isNotEmpty && p.id == item.id) return true;
+        final pTitle = p.title.trim().toLowerCase();
+        if (pTitle == itemTitle) return true;
+        final pCore = pTitle.replaceAll(RegExp(r'^(99acres|magicbricks|housing(\.com)?|custom\s*feed)[^:]*:\s*', caseSensitive: false), '').trim();
+        if (pCore.isNotEmpty && itemCore.isNotEmpty && pCore == itemCore) return true;
+        return false;
+      });
+
       if (index != -1) {
         updatedList[index] = item;
       } else {

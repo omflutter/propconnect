@@ -329,14 +329,47 @@ export const importProperties = async (req: Request, res: Response) => {
     for (const item of importList) {
       try {
         let existing: any = null;
+        const cleanTitle = String(item.title || '').trim();
+        const coreTitle = cleanTitle.replace(/^(99acres|magicbricks|housing(\.com)?|custom\s*feed)[^:]*:\s*/i, '').trim();
+
+        // 1. By explicit propertyCode
         if (item.propertyCode) {
           existing = await Property.findOne({
             where: { propertyCode: item.propertyCode, agencyId: targetAgencyId },
           });
         }
-        if (!existing && item.title) {
+
+        // 2. By externalId or feed id
+        if (!existing && (item.externalId || item.id)) {
+          const extId = String(item.externalId || item.id).trim();
           existing = await Property.findOne({
-            where: { title: item.title, agencyId: targetAgencyId },
+            where: {
+              agencyId: targetAgencyId,
+              [Op.or]: [
+                { propertyCode: extId },
+                { propertyCode: `IMP-${extId}` },
+              ],
+            },
+          });
+        }
+
+        // 3. Case-insensitive exact title match within this agency
+        if (!existing && cleanTitle) {
+          existing = await Property.findOne({
+            where: {
+              agencyId: targetAgencyId,
+              title: { [Op.iLike]: cleanTitle },
+            },
+          });
+        }
+
+        // 4. Case-insensitive core title match (ignoring platform prefix like "99acres Verified: ")
+        if (!existing && coreTitle.length >= 6) {
+          existing = await Property.findOne({
+            where: {
+              agencyId: targetAgencyId,
+              title: { [Op.iLike]: `%${coreTitle}%` },
+            },
           });
         }
 
@@ -353,6 +386,7 @@ export const importProperties = async (req: Request, res: Response) => {
             balcony: item.balcony !== undefined ? parseSafeInt(item.balcony, existing.balcony) : existing.balcony,
             parking: item.parking !== undefined ? parseSafeInt(item.parking, existing.parking) : existing.parking,
             furnishedStatus: item.furnishedStatus ? String(item.furnishedStatus) : existing.furnishedStatus,
+            propertyAge: item.propertyAge ? String(item.propertyAge) : existing.propertyAge,
             maintenanceCharges: item.maintenanceCharges ? String(item.maintenanceCharges) : existing.maintenanceCharges,
             amenities: item.amenities ? parseSafeStringList(item.amenities, existing.amenities) : existing.amenities,
           });
@@ -390,42 +424,55 @@ export const importProperties = async (req: Request, res: Response) => {
             furnishedStatus: String(item.furnishedStatus || 'Semi-Furnished'),
             propertyAge: item.propertyAge ? String(item.propertyAge) : '1-5 Years',
             maintenanceCharges: String(item.maintenanceCharges || '₹3,500/mo'),
-            securityDeposit: String(item.securityDeposit || '₹0'),
-            negotiablePrice: String(item.negotiablePrice || ''),
-            country: String(item.country || 'India'),
-            state: String(item.state || 'Maharashtra'),
-            city: String(item.city || 'Mumbai'),
-            area: String(item.area || ''),
-            address: String(item.address || ''),
-            googleMapUrl: String(item.googleMapUrl || ''),
-            latitude: parseSafeFloat(item.latitude, 19.076),
-            longitude: parseSafeFloat(item.longitude, 72.8777),
-            ownerName: String(item.ownerName || ''),
-            ownerPhonePrimary: String(item.ownerPhonePrimary || ''),
-            ownerPhoneSecondary: String(item.ownerPhoneSecondary || ''),
-            ownerEmail: String(item.ownerEmail || ''),
-            ownerAddress: String(item.ownerAddress || ''),
-            ownerKycDocs: parseSafeStringList(item.ownerKycDocs, []),
-            internalNotes: String(item.internalNotes || ''),
+            securityDeposit: '₹0',
+            negotiablePrice: '',
+            country: 'India',
+            state: 'Maharashtra',
+            city: 'Mumbai',
+            area: '',
+            address: '',
+            googleMapUrl: '',
+            latitude: 19.076,
+            longitude: 72.8777,
+            ownerName: '',
+            ownerPhonePrimary: '',
+            ownerPhoneSecondary: '',
+            ownerEmail: '',
+            ownerAddress: '',
+            ownerKycDocs: [],
+            internalNotes: '',
             amenities: parseSafeStringList(item.amenities, ['Gym', 'Security', 'Lift']),
-            images: parseSafeStringList(item.images, ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1000']),
-            floorPlans: parseSafeStringList(item.floorPlans, []),
-            videos: parseSafeStringList(item.videos, []),
-            documents: parseSafeStringList(item.documents, []),
+            images:
+              item.images && item.images.length > 0
+                ? parseSafeStringList(item.images)
+                : ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1000'],
+            floorPlans: [],
+            videos: [],
+            documents: [],
           });
 
           syncedList.push(created);
           createdCount++;
         }
-      } catch (itemError) {
-        console.error('Error importing individual property item:', itemError);
+      } catch (itemErr) {
+        console.warn(`[Import] Skipping malformed property item: ${itemErr}`);
       }
     }
 
     const summaryMsg =
       updatedCount > 0
-        ? `Successfully synced ${syncedList.length} properties (${createdCount} added, ${updatedCount} updated) from ${platform || 'External Partner API'} into PostgreSQL!`
-        : `Successfully imported ${syncedList.length} properties from ${platform || 'External Partner API'} into PostgreSQL!`;
+        ? `Successfully synced ${syncedList.length} properties (${createdCount} added, ${updatedCount} updated) from ${platform || 'feed'} into PostgreSQL!`
+        : `Successfully imported ${syncedList.length} properties from ${platform || 'feed'} into PostgreSQL!`;
+
+    // PRD Sec 18: Record Audit Log for Properties Synced
+    AuditService.logAction({
+      action: 'Properties Synced',
+      target: `${platform || 'External'} Feed Sync (${syncedList.length} total, ${createdCount} new, ${updatedCount} updated)`,
+      req,
+      actorName: targetBrokerName,
+      actorRole: 'Broker',
+      details: { platform, count: syncedList.length, createdCount, updatedCount },
+    }).catch(() => {});
 
     return successResponse(res, summaryMsg, syncedList, 201);
   } catch (error: any) {

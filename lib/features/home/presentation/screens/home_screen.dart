@@ -280,10 +280,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final properties = ref.watch(propertyProvider);
     final isPropertiesLoading = ref.watch(isPropertiesLoadingProvider);
     final deals = ref.watch(dealProvider);
-    
+    final userData = AuthStorageService.getUserData();
+    final userAgency = userData?['agency'] as Map<String, dynamic>?;
+    final userAgencyId = userData?['agencyId'] ?? userData?['agency_id'] ?? userAgency?['id'];
+    final userAgencyName = (userAgency?['name'] as String?) ??
+        (userData?['agencyName'] as String?) ??
+        (userData?['agency_name'] as String?) ?? '';
+    final userName = (userData?['name'] as String?) ?? '';
+    final userRole = (userData?['role'] as String?)?.toLowerCase();
+
+    // Filter properties for the user's agency (strictly matching PropertiesScreen logic)
+    final myProperties = properties.where((p) {
+      if (userRole == 'super_admin') return true;
+      if (userAgencyId != null && p.agencyId != null) {
+        if (p.agencyId.toString() == userAgencyId.toString()) return true;
+      }
+      if (userAgencyName.trim().isNotEmpty && p.agencyName.trim().isNotEmpty) {
+        if (p.agencyName.toLowerCase().trim() == userAgencyName.toLowerCase().trim()) return true;
+      }
+      if (userName.trim().isNotEmpty && p.brokerName.trim().isNotEmpty) {
+        if (p.brokerName.toLowerCase().trim() == userName.toLowerCase().trim()) return true;
+      }
+      return false;
+    }).toList();
+
     // Calculate real values based on backend data
-    final String propertiesDisplay = (isPropertiesLoading && properties.isEmpty) ? '...' : properties.length.toString();
-    final String publicPropertiesDisplay = (isPropertiesLoading && properties.isEmpty) ? '...' : properties.where((p) => p.isPublic).length.toString();
+    final String propertiesDisplay = (isPropertiesLoading && properties.isEmpty) ? '...' : myProperties.length.toString();
+    final String publicPropertiesDisplay = (isPropertiesLoading && properties.isEmpty) ? '...' : myProperties.where((p) => p.isPublic).length.toString();
+    final String allPublicDisplay = (isPropertiesLoading && properties.isEmpty) ? '...' : properties.where((p) => p.isPublic).length.toString();
     int requestsCount = deals.where((d) => d.isRequest).length;
     int activeDealsCount = deals.where((d) => !d.isRequest).length;
 
@@ -305,7 +329,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         {'title': 'My Commission', 'value': '₹0', 'icon': Icons.currency_rupee, 'color': Colors.red},
         {'title': 'Collab Requests', 'value': requestsCount.toString(), 'icon': Icons.handshake_outlined, 'color': Colors.purple},
         {'title': 'Active Leads', 'value': '0', 'icon': Icons.person_outline, 'color': Colors.lightGreen},
-        {'title': 'Public Search', 'value': publicPropertiesDisplay, 'icon': Icons.search, 'color': Colors.teal},
+        {'title': 'Public Search', 'value': allPublicDisplay, 'icon': Icons.search, 'color': Colors.teal},
       ];
     }
 

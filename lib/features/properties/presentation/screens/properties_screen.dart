@@ -96,6 +96,8 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
         }
 
         if (mounted) {
+          final serverMsg = res['message'] as String? ??
+              'Successfully synced ${sampleList.length} properties from $platform without duplicates! ($syncFreq)';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -103,7 +105,7 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                   const Icon(Icons.cloud_done, color: Colors.white, size: 20),
                   const Gap(10),
                   Expanded(
-                    child: Text('Imported ${sampleList.length} properties from $platform into PostgreSQL! ($syncFreq active)'),
+                    child: Text(serverMsg),
                   ),
                 ],
               ),
@@ -162,6 +164,20 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
     String? feedErrorMessage;
     List<Map<String, dynamic>> previewListings = [];
     Set<int> selectedIndices = {};
+
+    final allCurrentProps = ref.read(propertyProvider);
+    final existingTitles = allCurrentProps.map((p) => p.title.trim().toLowerCase()).toSet();
+    final existingCoreTitles = allCurrentProps.map((p) =>
+      p.title.trim().toLowerCase().replaceAll(RegExp(r'^(99acres|magicbricks|housing(\.com)?|custom\s*feed)[^:]*:\s*', caseSensitive: false), '').trim()
+    ).where((s) => s.length >= 6).toSet();
+
+    bool isItemInDb(Map<String, dynamic> item) {
+      final t = (item['title'] as String? ?? '').trim().toLowerCase();
+      if (existingTitles.contains(t)) return true;
+      final core = t.replaceAll(RegExp(r'^(99acres|magicbricks|housing(\.com)?|custom\s*feed)[^:]*:\s*', caseSensitive: false), '').trim();
+      if (core.length >= 6 && existingCoreTitles.contains(core)) return true;
+      return false;
+    }
 
     final List<Map<String, dynamic>> platforms = [
       {
@@ -535,7 +551,15 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                                   setModalState(() {
                                     previewListings = result.listings;
                                     isLiveFeedSource = result.isRealFeed;
-                                    selectedIndices = Set<int>.from(List.generate(result.listings.length, (i) => i));
+                                    final newIndices = <int>{};
+                                    for (int i = 0; i < result.listings.length; i++) {
+                                      if (!isItemInDb(result.listings[i])) {
+                                        newIndices.add(i);
+                                      }
+                                    }
+                                    selectedIndices = newIndices.isNotEmpty
+                                        ? newIndices
+                                        : Set<int>.from(List.generate(result.listings.length, (i) => i));
                                     isFetchingPreview = false;
                                     isPreviewMode = true;
                                     feedErrorMessage = null;
@@ -645,9 +669,17 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                               children: [
                                 Icon(Icons.checklist, size: 18, color: activePlatform['color'] as Color),
                                 const Gap(6),
-                                Text(
-                                  '${selectedIndices.length} of ${previewListings.length} selected',
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5, color: AppColors.textPrimary),
+                                Builder(
+                                  builder: (context) {
+                                    final selInDb = selectedIndices.where((i) => i < previewListings.length && isItemInDb(previewListings[i])).length;
+                                    final selNew = selectedIndices.length - selInDb;
+                                    return Text(
+                                      selInDb > 0
+                                          ? '${selectedIndices.length} selected ($selNew new, $selInDb updates)'
+                                          : '${selectedIndices.length} of ${previewListings.length} selected',
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5, color: AppColors.textPrimary),
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -777,6 +809,42 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
+                                          // Synced / New Status Badge
+                                          Builder(
+                                            builder: (context) {
+                                              final inDb = isItemInDb(item);
+                                              return Container(
+                                                margin: const EdgeInsets.only(bottom: 4),
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: inDb ? const Color(0xFFEFF6FF) : const Color(0xFFECFDF5),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(
+                                                    color: inDb ? const Color(0xFF3B82F6).withValues(alpha: 0.3) : const Color(0xFF10B981).withValues(alpha: 0.3),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      inDb ? Icons.sync : Icons.add_circle_outline,
+                                                      size: 11,
+                                                      color: inDb ? const Color(0xFF2563EB) : const Color(0xFF059669),
+                                                    ),
+                                                    const Gap(3),
+                                                    Text(
+                                                      inDb ? 'Synced • Will update in-place' : 'New Listing • Will be added',
+                                                      style: TextStyle(
+                                                        fontSize: 9.5,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: inDb ? const Color(0xFF1D4ED8) : const Color(0xFF047857),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                          ),
                                           Text(
                                             item['title'] as String? ?? 'Untitled Listing',
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: AppColors.textPrimary),
@@ -909,11 +977,25 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                       )
                                     : const Icon(Icons.cloud_download, color: Colors.white, size: 18),
-                                label: Text(
-                                  isImportingModal
-                                      ? 'Importing ${selectedIndices.length} to PostgreSQL...'
-                                      : 'Confirm & Import (${selectedIndices.length})',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.white),
+                                label: Builder(
+                                  builder: (context) {
+                                    final selInDbCount = selectedIndices.where((i) => i < previewListings.length && isItemInDb(previewListings[i])).length;
+                                    final selNewCount = selectedIndices.length - selInDbCount;
+                                    final String btnText;
+                                    if (isImportingModal) {
+                                      btnText = 'Syncing ${selectedIndices.length} to PostgreSQL...';
+                                    } else if (selNewCount > 0 && selInDbCount > 0) {
+                                      btnText = 'Confirm & Sync ($selNewCount New, $selInDbCount Updates)';
+                                    } else if (selInDbCount > 0) {
+                                      btnText = 'Update In-Place ($selInDbCount Existing)';
+                                    } else {
+                                      btnText = 'Confirm & Import ($selNewCount New)';
+                                    }
+                                    return Text(
+                                      btnText,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.white),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
