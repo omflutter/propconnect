@@ -14,6 +14,7 @@ export class User extends Model {
   declare public agencyId: number | null;
   declare public agency?: Agency;
   declare public fcmToken: string | null;
+  declare public avatarUrl: string | null;
   declare public status: 'Active' | 'Suspended';
   declare public readonly createdAt: Date;
   declare public readonly updatedAt: Date;
@@ -70,6 +71,10 @@ User.init(
       defaultValue: 'Active',
     },
     fcmToken: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    avatarUrl: {
       type: DataTypes.TEXT,
       allowNull: true,
     },

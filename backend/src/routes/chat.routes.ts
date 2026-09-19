@@ -1,7 +1,17 @@
 import { Router } from 'express';
-import { getConversations, getMessages, sendMessage } from '../controllers/chat.controller';
+import { getConversations, getAdminConversations, getMessages, sendMessage } from '../controllers/chat.controller';
 
 const router = Router();
+
+/**
+ * @openapi
+ * /chat/admin/conversations:
+ *   get:
+ *     summary: Get All Platform Conversations for Moderation (PRD Sec 11)
+ *     tags:
+ *       - Chat
+ */
+router.get('/chat/admin/conversations', getAdminConversations);
 
 /**
  * @openapi

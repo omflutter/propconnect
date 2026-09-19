@@ -61,6 +61,7 @@ export const adminLogin = async (req: Request, res: Response) => {
       name: user.name,
       email: user.email,
       phone: user.phone,
+      avatarUrl: user.avatarUrl || null,
       role: user.role,
       agencyId: user.agencyId,
       agency: user.agency || null,
@@ -133,6 +134,7 @@ export const loginUser = async (req: Request, res: Response) => {
       name: user.name,
       email: user.email,
       phone: user.phone,
+      avatarUrl: user.avatarUrl || null,
       role: user.role,
       agencyId: user.agencyId,
       agency: user.agency || null,
@@ -203,6 +205,7 @@ export const updateUserProfile = async (req: AuthenticatedRequest, res: Response
 
     if (name && name.trim()) user.name = name.trim();
     if (phone !== undefined) user.phone = phone.trim();
+    if (req.body.avatarUrl !== undefined) user.avatarUrl = req.body.avatarUrl;
 
     await user.save();
 
@@ -211,6 +214,7 @@ export const updateUserProfile = async (req: AuthenticatedRequest, res: Response
       name: user.name,
       email: user.email,
       phone: user.phone,
+      avatarUrl: user.avatarUrl || null,
       role: user.role,
       agencyId: user.agencyId,
       agency: user.agency || null,

@@ -711,7 +711,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     ),
                                     clipBehavior: Clip.antiAlias,
                                     child: prop.images.isNotEmpty
-                                        ? Image.asset(prop.images.first, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Center(child: Icon(Icons.apartment, size: 48, color: AppColors.primaryBlue)))
+                                        ? (prop.images.first.startsWith('http')
+                                            ? Image.network(prop.images.first, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Center(child: Icon(Icons.apartment, size: 48, color: AppColors.primaryBlue)))
+                                            : Image.asset(prop.images.first, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Center(child: Icon(Icons.apartment, size: 48, color: AppColors.primaryBlue))))
                                         : const Center(child: Icon(Icons.apartment, size: 48, color: AppColors.primaryBlue)),
                                   ),
                                   Positioned(

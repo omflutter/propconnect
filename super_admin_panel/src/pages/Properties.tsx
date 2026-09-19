@@ -28,6 +28,9 @@ export function Properties() {
     description: '',
   });
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
+  const [selectedPropertyForView, setSelectedPropertyForView] = useState<any | null>(null);
+  const [selectedPropertyForEdit, setSelectedPropertyForEdit] = useState<any | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const loadProperties = async () => {
     setIsLoading(true);
@@ -45,6 +48,7 @@ export function Properties() {
           status: p.status || 'Available',
           images: Array.isArray(p.images) ? p.images : [],
           firstImage: Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : null,
+          raw: p,
         })));
       }
     } catch (_) {}
@@ -134,6 +138,36 @@ export function Properties() {
       toast.error(err.message || 'Error creating property listing.');
     }
     setIsSubmitting(false);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPropertyForEdit) return;
+
+    setIsSavingEdit(true);
+    try {
+      const res = await apiFetch(`/properties/${selectedPropertyForEdit.rawId || selectedPropertyForEdit.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: selectedPropertyForEdit.status,
+          price: selectedPropertyForEdit.price,
+          type: selectedPropertyForEdit.type,
+          isPublic: selectedPropertyForEdit.isPublic,
+        }),
+      });
+
+      if (res.success) {
+        toast.success('Property listing updated successfully!');
+        setSelectedPropertyForEdit(null);
+        loadProperties();
+      } else {
+        toast.error(res.message || 'Failed to update property');
+      }
+    } catch (_) {
+      toast.error('Network error updating property');
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   useEffect(() => {
@@ -256,9 +290,15 @@ export function Properties() {
                       <div className="action-buttons">
                         <ActionDropdown 
                           actions={[
-                            { label: 'View Property Details', onClick: () => toast.success(`Viewing ${prop.title}`) },
-                            { label: 'Edit Listing', onClick: () => toast.success('Edit mode') },
-                            { label: 'Delete Listing', onClick: () => handleDelete(prop.id), danger: true },
+                            { label: 'View Property Details', onClick: () => setSelectedPropertyForView(prop) },
+                            { label: 'Edit Listing', onClick: () => setSelectedPropertyForEdit({
+                              ...prop,
+                              status: prop.status || 'Available',
+                              price: prop.raw?.price || prop.price,
+                              type: prop.type || 'Sale',
+                              isPublic: prop.raw?.isPublic ?? true,
+                            }) },
+                            { label: 'Delete Listing', onClick: () => handleDelete(prop.rawId || prop.id), danger: true },
                           ]}
                         />
                       </div>
@@ -499,6 +539,217 @@ export function Properties() {
                     </>
                   ) : (
                     `Create Property Listing (${uploadedPhotos.length} Photos)`
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Property Details Modal */}
+      {selectedPropertyForView && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: 700, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <div>
+                <h2>{selectedPropertyForView.title}</h2>
+                <span className="entity-sub" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Code: <strong>{selectedPropertyForView.id}</strong> • Agency: <strong>{selectedPropertyForView.agency}</strong>
+                </span>
+              </div>
+              <button className="icon-btn" onClick={() => setSelectedPropertyForView(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Image Gallery */}
+              {selectedPropertyForView.images && selectedPropertyForView.images.length > 0 ? (
+                <div>
+                  <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, display: 'block' }}>
+                    Property Gallery ({selectedPropertyForView.images.length} Photos)
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+                    {selectedPropertyForView.images.map((imgUrl: string, idx: number) => (
+                      <a
+                        key={idx}
+                        href={imgUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'block',
+                          height: 95,
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                          border: '1px solid var(--border)',
+                          position: 'relative',
+                        }}
+                      >
+                        <img src={imgUrl} alt="Property" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 4,
+                          right: 4,
+                          background: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          borderRadius: 4,
+                          padding: '2px 5px',
+                          fontSize: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}>
+                          <Eye size={10} /> View
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: 16, textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: 8, color: 'var(--text-secondary)', fontSize: 13 }}>
+                  No photos uploaded for this property listing.
+                </div>
+              )}
+
+              {/* Key Specs & Price */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, background: 'var(--bg-secondary)', padding: 14, borderRadius: 8 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Asking Price</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary)' }}>{selectedPropertyForView.price}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Listing Type</div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{selectedPropertyForView.type}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</div>
+                  <div>
+                    <span className={`status-badge ${selectedPropertyForView.status.toLowerCase().replace(' ', '-')}`}>
+                      {selectedPropertyForView.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Location & Specs */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-group">
+                  <label>Location</label>
+                  <div style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 13 }}>
+                    <MapPin size={13} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                    {selectedPropertyForView.location}
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Built-up Area / Configuration</label>
+                  <div style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 13 }}>
+                    {selectedPropertyForView.raw?.areaSqft ? `${selectedPropertyForView.raw.areaSqft} sq.ft` : '1,200 sq.ft'} • {selectedPropertyForView.raw?.bhk || '2 BHK'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="form-group">
+                <label>Description</label>
+                <div style={{ padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 13, minHeight: 60, whiteSpace: 'pre-wrap' }}>
+                  {selectedPropertyForView.raw?.description || 'No detailed description provided for this listing.'}
+                </div>
+              </div>
+
+              {/* Privacy Notice */}
+              <div style={{ padding: '10px 14px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: 6, border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: 12, color: 'var(--text-secondary)' }}>
+                🔒 <strong>Lead & Owner Privacy (PRD Section 6):</strong> Owner contacts and direct client identifiers are strictly masked across agencies. Only the listing agency has permission to unlock direct communication.
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => setSelectedPropertyForView(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Property Listing Modal */}
+      {selectedPropertyForEdit && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <div>
+                <h2>Edit Listing</h2>
+                <span className="entity-sub" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {selectedPropertyForEdit.title} ({selectedPropertyForEdit.id})
+                </span>
+              </div>
+              <button className="icon-btn" onClick={() => setSelectedPropertyForEdit(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEdit}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="form-group">
+                  <label>Listing Status *</label>
+                  <select
+                    className="form-select"
+                    value={selectedPropertyForEdit.status}
+                    onChange={(e) => setSelectedPropertyForEdit({ ...selectedPropertyForEdit, status: e.target.value })}
+                  >
+                    <option value="Available">Available</option>
+                    <option value="Under Offer">Under Offer</option>
+                    <option value="Sold">Sold</option>
+                    <option value="Off-Market">Off-Market</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Listing Type *</label>
+                  <select
+                    className="form-select"
+                    value={selectedPropertyForEdit.type}
+                    onChange={(e) => setSelectedPropertyForEdit({ ...selectedPropertyForEdit, type: e.target.value })}
+                  >
+                    <option value="Sale">Sale</option>
+                    <option value="Rent">Rent</option>
+                    <option value="Lease">Lease</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Price *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={selectedPropertyForEdit.price}
+                    onChange={(e) => setSelectedPropertyForEdit({ ...selectedPropertyForEdit, price: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <input
+                    type="checkbox"
+                    id="isPublicCheck"
+                    checked={Boolean(selectedPropertyForEdit.isPublic)}
+                    onChange={(e) => setSelectedPropertyForEdit({ ...selectedPropertyForEdit, isPublic: e.target.checked })}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                  />
+                  <label htmlFor="isPublicCheck" style={{ cursor: 'pointer', margin: 0, fontWeight: 500 }}>
+                    Publicly Visible on Collaboration Exchange (PRD Section 4.5)
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn-secondary" onClick={() => setSelectedPropertyForEdit(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={isSavingEdit}>
+                  {isSavingEdit ? (
+                    <>
+                      <Loader2 size={16} className="spin" /> Updating...
+                    </>
+                  ) : (
+                    'Save Changes'
                   )}
                 </button>
               </div>

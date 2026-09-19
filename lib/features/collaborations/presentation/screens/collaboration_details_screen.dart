@@ -90,7 +90,9 @@ class CollaborationDetailsScreen extends ConsumerWidget {
                       width: 100,
                       height: 100,
                       child: property.images.isNotEmpty
-                          ? Image.asset(property.images.first, fit: BoxFit.cover)
+                          ? (property.images.first.startsWith('http')
+                              ? Image.network(property.images.first, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: AppColors.border, child: const Icon(Icons.apartment, color: AppColors.primaryBlue)))
+                              : Image.asset(property.images.first, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: AppColors.border, child: const Icon(Icons.apartment, color: AppColors.primaryBlue))))
                           : Container(color: AppColors.border, child: const Icon(Icons.image, color: Colors.grey)),
                     ),
                     Expanded(

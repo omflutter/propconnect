@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gap/gap.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/providers/agency_provider.dart';
 import 'package:propconnect/core/providers/user_role_provider.dart';
@@ -19,6 +21,8 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   bool _isEditing = false;
   bool _isSavingProfile = false;
   bool _isChangingPassword = false;
+  bool _isUploadingAvatar = false;
+  String? _avatarUrl;
 
   bool _obscureCurrentPass = true;
   bool _obscureNewPass = true;
@@ -38,6 +42,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   void initState() {
     super.initState();
     final userData = AuthStorageService.getUserData();
+    _avatarUrl = userData?['avatarUrl'] as String?;
     _nameController = TextEditingController(text: (userData?['name'] as String?) ?? 'User');
     _phoneController = TextEditingController(text: (userData?['phone'] as String?) ?? '');
     _emailController = TextEditingController(text: (userData?['email'] as String?) ?? '');
@@ -116,6 +121,67 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
+      );
+    }
+  }
+
+  // Handle Pick & Upload Profile Photo
+  Future<void> _pickAndUploadAvatar() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 800);
+      if (picked == null) return;
+
+      setState(() => _isUploadingAvatar = true);
+
+      final bytes = await picked.readAsBytes();
+      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+      final uploadRes = await ApiService.post('/upload/base64', {
+        'image': base64Image,
+        'filename': picked.name,
+      });
+
+      if (uploadRes['success'] == true && uploadRes['data']?['url'] != null) {
+        final newUrl = uploadRes['data']['url'] as String;
+
+        // Save to backend profile
+        final profileRes = await ApiService.put('/auth/profile', {
+          'avatarUrl': newUrl,
+        });
+
+        if (profileRes['success'] == true) {
+          final updatedUser = (profileRes['data'] as Map<String, dynamic>?) ?? {};
+          final token = AuthStorageService.getAuthToken() ?? '';
+          final role = AuthStorageService.getUserRole();
+          await AuthStorageService.saveSession(token: token, user: updatedUser, role: role);
+
+          setState(() {
+            _avatarUrl = newUrl;
+            _isUploadingAvatar = false;
+          });
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile picture updated successfully!'),
+              backgroundColor: AppColors.primaryBlue,
+            ),
+          );
+          return;
+        }
+      }
+
+      setState(() => _isUploadingAvatar = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update profile picture'), backgroundColor: AppColors.error),
+      );
+    } catch (e) {
+      setState(() => _isUploadingAvatar = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error uploading image: $e'), backgroundColor: AppColors.error),
       );
     }
   }
@@ -259,26 +325,54 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                   Stack(
                     alignment: Alignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [AppColors.primaryBlueLight, AppColors.primaryBlue],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: CircleAvatar(
-                          radius: 42,
-                          backgroundColor: Colors.white,
-                          child: CircleAvatar(
-                            radius: 39,
-                            backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.1),
-                            child: Text(
-                              userInitials,
-                              style: const TextStyle(fontSize: 28, color: AppColors.primaryBlue, fontWeight: FontWeight.bold),
+                      GestureDetector(
+                        onTap: _isEditing ? _pickAndUploadAvatar : null,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [AppColors.primaryBlueLight, AppColors.primaryBlue],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 42,
+                            backgroundColor: Colors.white,
+                            child: _isUploadingAvatar
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primaryBlue),
+                                  )
+                                : (_avatarUrl != null && _avatarUrl!.isNotEmpty)
+                                    ? ClipOval(
+                                        child: Image.network(
+                                          _avatarUrl!.startsWith('http')
+                                              ? _avatarUrl!
+                                              : '${ApiService.baseUrl.replaceAll('/api/v1', '')}$_avatarUrl',
+                                          width: 78,
+                                          height: 78,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => CircleAvatar(
+                                            radius: 39,
+                                            backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.1),
+                                            child: Text(
+                                              userInitials,
+                                              style: const TextStyle(fontSize: 28, color: AppColors.primaryBlue, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : CircleAvatar(
+                                        radius: 39,
+                                        backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.1),
+                                        child: Text(
+                                          userInitials,
+                                          style: const TextStyle(fontSize: 28, color: AppColors.primaryBlue, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
                           ),
                         ),
                       ),
@@ -286,13 +380,16 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                         Positioned(
                           bottom: 0,
                           right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(
-                              color: AppColors.primaryBlue,
-                              shape: BoxShape.circle,
+                          child: GestureDetector(
+                            onTap: _pickAndUploadAvatar,
+                            child: Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: const BoxDecoration(
+                                color: AppColors.primaryBlue,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
                             ),
-                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
                           ),
                         ),
                     ],

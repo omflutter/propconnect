@@ -72,6 +72,12 @@ class AuthStorageService {
     return null;
   }
 
+  /// Update stored user profile data
+  static Future<void> updateUserData(Map<String, dynamic> user) async {
+    await init();
+    await _prefs?.setString(_keyUserData, jsonEncode(user));
+  }
+
   /// Get stored user role
   static UserRole getUserRole() {
     final roleStr = _prefs?.getString(_keyUserRole);

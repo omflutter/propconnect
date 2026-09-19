@@ -6,11 +6,13 @@ import {
   deleteNotification,
   registerFcmToken,
   broadcastNotification,
+  getAdminBroadcasts,
 } from '../controllers/notification.controller';
 
 const router = Router();
 
 router.get('/notifications', getNotifications);
+router.get('/notifications/broadcasts', getAdminBroadcasts);
 router.put('/notifications/read-all', markAllNotificationsAsRead);
 router.put('/notifications/:id/read', markNotificationAsRead);
 router.delete('/notifications/:id', deleteNotification);

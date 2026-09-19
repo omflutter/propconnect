@@ -103,6 +103,54 @@ export const getConversations = async (req: Request, res: Response) => {
 };
 
 /**
+ * Fetch All Platform Conversations for Super Admin Moderation (PRD Sec 11)
+ */
+export const getAdminConversations = async (_req: Request, res: Response) => {
+  try {
+    const messages = await Message.findAll({
+      where: {
+        conversationId: { [Op.and]: [{ [Op.ne]: 'null' }, { [Op.ne]: '' }] },
+      },
+      order: [['createdAt', 'DESC']],
+    });
+
+    const conversationMap = new Map<string, any>();
+
+    for (const msg of messages) {
+      const data = msg.dataValues || msg.get();
+      const convId = data.conversationId;
+      if (!convId || convId === 'null') continue;
+
+      if (!conversationMap.has(convId)) {
+        const participantA = data.senderName || `Broker ${data.senderId}`;
+        const participantB = data.receiverName || `Broker ${data.receiverId}`;
+
+        conversationMap.set(convId, {
+          conversationId: convId,
+          participants: `${participantA} ↔ ${participantB}`,
+          senderId: data.senderId,
+          senderName: data.senderName,
+          receiverId: data.receiverId,
+          receiverName: data.receiverName,
+          lastMessage: data.messageText,
+          attachmentType: data.attachmentType,
+          lastMessageTime: data.createdAt,
+          messageCount: 1,
+        });
+      } else {
+        const existing = conversationMap.get(convId);
+        existing.messageCount = (existing.messageCount || 0) + 1;
+      }
+    }
+
+    const conversations = Array.from(conversationMap.values());
+    return successResponse(res, 'All platform conversations retrieved for admin moderation', conversations);
+  } catch (error: any) {
+    return errorResponse(res, 'Failed to fetch admin conversations', error.message || error);
+  }
+};
+
+/**
  * Fetch Message History for Conversation - 100% PostgreSQL
  */
 export const getMessages = async (req: Request, res: Response) => {

@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/models/property_model.dart';
@@ -78,7 +80,10 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
             'text': m['messageText'] ?? '',
             'time': formattedTime,
             'type': m['attachmentType'] ?? 'text',
-            'property': m['attachmentData'] != null ? PropertyModel.fromJson(Map<String, dynamic>.from(m['attachmentData'] as Map)) : null,
+            'property': (m['attachmentType'] == 'property' && m['attachmentData'] != null)
+                ? PropertyModel.fromJson(Map<String, dynamic>.from(m['attachmentData'] as Map))
+                : null,
+            'attachmentData': m['attachmentData'],
           };
         }).toList();
 
@@ -134,10 +139,11 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
 
     final newMsg = {
       'isMe': true,
-      'text': text.isNotEmpty ? text : (type == 'property' ? 'Shared Property Card' : 'Attachment'),
+      'text': text.isNotEmpty ? text : (type == 'property' ? 'Shared Property Card' : (type == 'image' ? 'Photo Attachment' : 'Attachment')),
       'time': timeStr,
       'type': type,
       'property': attachmentData != null && type == 'property' ? PropertyModel.fromJson(attachmentData) : null,
+      'attachmentData': attachmentData,
     };
 
     setState(() {
@@ -168,6 +174,160 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
       type: 'property',
       attachmentData: property.toJson(),
       textOverride: 'Check out this property listing: ${property.title}',
+    );
+  }
+
+  Future<void> _pickAndSendImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: source, imageQuality: 80, maxWidth: 1200);
+      if (pickedFile == null) return;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+              SizedBox(width: 12),
+              Text('Uploading image...'),
+            ],
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
+
+      final bytes = await pickedFile.readAsBytes();
+      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+      final res = await ApiService.post('/upload/base64', {
+        'image': base64Image,
+        'filename': pickedFile.name,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (res['success'] == true && res['data']?['url'] != null) {
+        final imageUrl = res['data']['url'] as String;
+        _sendMessage(
+          type: 'image',
+          attachmentData: {
+            'url': imageUrl,
+            'fileName': pickedFile.name,
+          },
+          textOverride: imageUrl,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['message']?.toString() ?? 'Failed to upload photo')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error uploading photo: $e')),
+      );
+    }
+  }
+
+  Widget _buildImageAttachmentCard(String imageUrl, bool isMe) {
+    final validUrl = imageUrl.startsWith('http')
+        ? imageUrl
+        : (imageUrl.startsWith('/uploads') ? '${ApiService.baseUrl.replaceAll('/api/v1', '')}$imageUrl' : null);
+
+    return GestureDetector(
+      onTap: () {
+        if (validUrl != null) {
+          _showFullScreenImage(context, validUrl);
+        }
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 240, maxHeight: 240),
+          color: Colors.black12,
+          child: validUrl != null
+              ? Image.network(
+                  validUrl,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 160,
+                      width: 220,
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryBlue),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 130,
+                      width: 200,
+                      color: Colors.grey.shade200,
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image_outlined, size: 32, color: AppColors.textSecondary),
+                          Gap(6),
+                          Text('Image failed to load', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    );
+                  },
+                )
+              : Container(
+                  height: 120,
+                  width: 200,
+                  color: Colors.grey.shade200,
+                  child: const Center(child: Icon(Icons.image, size: 36, color: Colors.grey)),
+                ),
+        ),
+      ),
+    );
+  }
+
+  void _showFullScreenImage(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(12),
+          child: Stack(
+            alignment: Alignment.topRight,
+            children: [
+              InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4.0,
+                child: Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(imageUrl, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                  icon: const Icon(Icons.close, color: Colors.white, size: 22),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -303,17 +463,11 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                 children: [
                   _buildAttachmentIcon(context, Icons.insert_photo_outlined, 'Gallery', Colors.purple, onTap: () {
                     Navigator.pop(context);
-                    _sendMessage(
-                      type: 'image',
-                      textOverride: '📷 Sent Property Photo Attachment',
-                    );
+                    _pickAndSendImage(ImageSource.gallery);
                   }),
                   _buildAttachmentIcon(context, Icons.camera_alt_outlined, 'Camera', Colors.pink, onTap: () {
                     Navigator.pop(context);
-                    _sendMessage(
-                      type: 'image',
-                      textOverride: '📷 Captured Live Property Photo',
-                    );
+                    _pickAndSendImage(ImageSource.camera);
                   }),
                   _buildAttachmentIcon(context, Icons.insert_drive_file_outlined, 'Document', Colors.blue, onTap: () {
                     Navigator.pop(context);
@@ -765,8 +919,18 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                                   if (prop != null) ...[
                                     _buildPropertyAttachmentCard(prop, isMe),
                                   ],
+                                  if (message['type'] == 'image') ...[
+                                    _buildImageAttachmentCard(
+                                      (message['attachmentData'] != null && (message['attachmentData'] as Map)['url'] != null)
+                                          ? (message['attachmentData'] as Map)['url'].toString()
+                                          : message['text'].toString(),
+                                      isMe,
+                                    ),
+                                    const Gap(4),
+                                  ],
                                   if (message['text'] != null &&
                                       (message['text'] as String).isNotEmpty &&
+                                      message['type'] != 'image' &&
                                       !message['text'].toString().startsWith('Check out this property listing:') &&
                                       message['text'] != 'Shared Property Card' &&
                                       message['text'] != 'Shared Attachment')

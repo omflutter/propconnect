@@ -77,9 +77,10 @@ class FirestoreChatService {
               'text': data['messageText'] ?? '',
               'time': timeStr,
               'type': data['attachmentType'] ?? 'text',
-              'property': data['attachmentData'] != null
+              'property': (data['attachmentType'] == 'property' && data['attachmentData'] != null)
                   ? PropertyModel.fromJson(Map<String, dynamic>.from(data['attachmentData'] as Map))
                   : null,
+              'attachmentData': data['attachmentData'],
               'isRead': data['isRead'] ?? false,
             };
           }).toList();

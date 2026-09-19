@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { Notification } from '../models/notification.model';
 import { NotificationService } from '../services/notification.service';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
@@ -133,5 +134,40 @@ export const broadcastNotification = async (req: Request, res: Response) => {
     );
   } catch (error: any) {
     return errorResponse(res, 'Failed to broadcast notification', error.message || error);
+  }
+};
+
+/**
+ * Super Admin Get Broadcast History (PRD Sec 17)
+ */
+export const getAdminBroadcasts = async (_req: Request, res: Response) => {
+  try {
+    const broadcasts = await Notification.findAll({
+      where: { type: 'system' },
+      order: [['createdAt', 'DESC']],
+      limit: 50,
+    });
+
+    // Group by notificationCode/title/createdAt to avoid repeating per-user rows
+    const uniqueMap = new Map<string, any>();
+    for (const b of broadcasts) {
+      const data = b.dataValues || b.get();
+      const key = `${data.title}_${new Date(data.createdAt).toISOString().substring(0, 16)}`;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, {
+          id: data.notificationCode || `NOTIF-${data.id}`,
+          title: data.title,
+          targetGroup: 'All Registered Agencies & Brokers',
+          channels: (data.channels || 'in_app,push').replace(',', ' + ').toUpperCase(),
+          sentCount: 'Broadcast Dispatched',
+          date: new Date(data.createdAt).toISOString().replace('T', ' ').substring(0, 16),
+          status: 'Sent',
+        });
+      }
+    }
+
+    return successResponse(res, 'System broadcasts retrieved', Array.from(uniqueMap.values()));
+  } catch (error: any) {
+    return errorResponse(res, 'Failed to fetch broadcasts', error.message || error);
   }
 };
