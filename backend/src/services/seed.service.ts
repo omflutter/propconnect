@@ -13,6 +13,149 @@ import { Notification } from '../models/notification.model';
 
 export const seedInitialData = async () => {
   try {
+    // 1. Seed Demo Agencies & Users First (Foreign Key Anchor)
+    const userCount = await User.count();
+    let agency1Id = 1;
+    if (userCount === 0) {
+      console.log('[Seed] Seeding initial agencies and users...');
+      const salt = await bcrypt.genSalt(10);
+      const adminPasswordHash = await bcrypt.hash('admin123', salt);
+      const agencyPasswordHash = await bcrypt.hash('agency123', salt);
+      const brokerPasswordHash = await bcrypt.hash('broker123', salt);
+
+      const fullPermissions = {
+        agencies: ['view', 'edit', 'delete'],
+        brokers: ['view', 'edit', 'delete'],
+        properties: ['view', 'edit', 'delete'],
+        deals: ['view', 'edit', 'delete'],
+        finance: ['view', 'edit', 'delete'],
+        gateways: ['view', 'edit', 'delete'],
+        whatsapp: ['view', 'edit', 'delete'],
+        settings: ['view', 'edit', 'delete'],
+      };
+
+      const opsPermissions = {
+        agencies: ['view', 'edit', 'delete'],
+        brokers: ['view', 'edit'],
+        properties: ['view', 'edit'],
+        deals: ['view'],
+      };
+
+      const financePermissions = {
+        finance: ['view', 'edit', 'delete'],
+        gateways: ['view', 'edit'],
+        agencies: ['view'],
+      };
+
+      const agency1 = await Agency.create({
+        agencyCode: 'AG-001',
+        name: 'Sunrise Properties',
+        reraNumber: 'PRM/KA/RERA/1251/310/PR/171015/000456',
+        location: 'Mumbai',
+        address: 'Suite 402, Bandra Kurla Complex, Mumbai',
+        adminName: 'Om Shivam',
+        adminEmail: 'om@propconnect.in',
+        adminPhone: '+91 98765 43210',
+        subscriptionTier: 'Enterprise (₹14,999/mo)',
+        userQuota: 25,
+        propertiesCount: 45,
+        dealsCount: 12,
+        status: 'Active',
+      });
+      agency1Id = agency1.id;
+
+      await Agency.create({
+        agencyCode: 'AG-002',
+        name: 'Metro Realty India',
+        reraNumber: 'PRM/DL/RERA/2210/405/PR/180211/000789',
+        location: 'Delhi NCR',
+        address: 'Cyber City, Tower B, Gurugram',
+        adminName: 'Rajesh Kumar',
+        adminEmail: 'rajesh@metrorealty.in',
+        adminPhone: '+91 98111 22233',
+        subscriptionTier: 'Pro (₹5,999/mo)',
+        userQuota: 15,
+        propertiesCount: 128,
+        dealsCount: 34,
+        status: 'Active',
+      });
+
+      await Agency.create({
+        agencyCode: 'AG-003',
+        name: 'Bangalore Estates',
+        reraNumber: 'PRM/KA/RERA/3340/512/PR/190504/000999',
+        location: 'Bangalore',
+        address: '100 Feet Road, Indiranagar, Bangalore',
+        adminName: 'Priya Sharma',
+        adminEmail: 'priya@bangaloreestates.in',
+        adminPhone: '+91 98450 12345',
+        subscriptionTier: 'Basic (₹2,999/mo)',
+        userQuota: 5,
+        propertiesCount: 12,
+        dealsCount: 3,
+        status: 'Pending',
+      });
+
+      await User.create({
+        name: 'Platform Super Admin',
+        email: 'admin@propconnect.in',
+        password: adminPasswordHash,
+        phone: '+91 99999 00000',
+        role: 'super_admin',
+        adminRoleTitle: 'Super Admin (Full Access)',
+        permissions: fullPermissions,
+        agencyId: null,
+        status: 'Active',
+      });
+
+      await User.create({
+        name: 'Vikram Malhotra',
+        email: 'vikram.m@propconnect.in',
+        password: adminPasswordHash,
+        phone: '+91 98765 11111',
+        role: 'super_admin',
+        adminRoleTitle: 'Operations & Onboarding Manager',
+        permissions: opsPermissions,
+        agencyId: null,
+        status: 'Active',
+      });
+
+      await User.create({
+        name: 'Sneha Kapoor',
+        email: 'sneha.k@propconnect.in',
+        password: adminPasswordHash,
+        phone: '+91 98765 22222',
+        role: 'super_admin',
+        adminRoleTitle: 'Finance & Payouts Lead',
+        permissions: financePermissions,
+        agencyId: null,
+        status: 'Active',
+      });
+
+      await User.create({
+        name: 'Om Shivam',
+        email: 'om@propconnect.in',
+        password: agencyPasswordHash,
+        phone: '+91 98765 43210',
+        role: 'agency_admin',
+        adminRoleTitle: 'Agency Tenant Admin',
+        agencyId: agency1Id,
+        status: 'Active',
+      });
+
+      await User.create({
+        name: 'Broker User',
+        email: 'broker@propconnect.in',
+        password: brokerPasswordHash,
+        phone: '+91 98222 33344',
+        role: 'broker',
+        adminRoleTitle: 'Registered Broker',
+        agencyId: agency1Id,
+        status: 'Active',
+      });
+      console.log('[Seed] Default Users & Agencies initialized.');
+    }
+
     const auditCount = await AuditLog.count();
     if (auditCount === 0) {
       await AuditLog.bulkCreate([
@@ -472,156 +615,6 @@ export const seedInitialData = async () => {
       ]);
       console.log('[Seed] Demo Collaboration Requests seeded.');
     }
-
-    const userCount = await User.count();
-    if (userCount > 0) {
-      console.log('[Seed] Database already contains user seed data.');
-      return;
-    }
-
-    console.log('[Seed] Seeding initial users, agencies, and admin team members into MySQL...');
-
-    const salt = await bcrypt.genSalt(10);
-    const adminPasswordHash = await bcrypt.hash('admin123', salt);
-    const agencyPasswordHash = await bcrypt.hash('agency123', salt);
-    const brokerPasswordHash = await bcrypt.hash('broker123', salt);
-
-    // Full permissions matrix for Super Admin
-    const fullPermissions = {
-      agencies: ['view', 'edit', 'delete'],
-      brokers: ['view', 'edit', 'delete'],
-      properties: ['view', 'edit', 'delete'],
-      deals: ['view', 'edit', 'delete'],
-      finance: ['view', 'edit', 'delete'],
-      gateways: ['view', 'edit', 'delete'],
-      whatsapp: ['view', 'edit', 'delete'],
-      settings: ['view', 'edit', 'delete'],
-    };
-
-    const opsPermissions = {
-      agencies: ['view', 'edit', 'delete'],
-      brokers: ['view', 'edit'],
-      properties: ['view', 'edit'],
-      deals: ['view'],
-    };
-
-    const financePermissions = {
-      finance: ['view', 'edit', 'delete'],
-      gateways: ['view', 'edit'],
-      agencies: ['view'],
-    };
-
-    // Seed Demo Agencies
-    const agency1 = await Agency.create({
-      agencyCode: 'AG-001',
-      name: 'Sunrise Properties',
-      reraNumber: 'PRM/KA/RERA/1251/310/PR/171015/000456',
-      location: 'Mumbai',
-      address: 'Suite 402, Bandra Kurla Complex, Mumbai',
-      adminName: 'Om Shivam',
-      adminEmail: 'om@propconnect.in',
-      adminPhone: '+91 98765 43210',
-      subscriptionTier: 'Enterprise (₹14,999/mo)',
-      userQuota: 25,
-      propertiesCount: 45,
-      dealsCount: 12,
-      status: 'Active',
-    });
-
-    await Agency.create({
-      agencyCode: 'AG-002',
-      name: 'Metro Realty India',
-      reraNumber: 'PRM/DL/RERA/2210/405/PR/180211/000789',
-      location: 'Delhi NCR',
-      address: 'Cyber City, Tower B, Gurugram',
-      adminName: 'Rajesh Kumar',
-      adminEmail: 'rajesh@metrorealty.in',
-      adminPhone: '+91 98111 22233',
-      subscriptionTier: 'Pro (₹5,999/mo)',
-      userQuota: 15,
-      propertiesCount: 128,
-      dealsCount: 34,
-      status: 'Active',
-    });
-
-    await Agency.create({
-      agencyCode: 'AG-003',
-      name: 'Bangalore Estates',
-      reraNumber: 'PRM/KA/RERA/3340/512/PR/190504/000999',
-      location: 'Bangalore',
-      address: '100 Feet Road, Indiranagar, Bangalore',
-      adminName: 'Priya Sharma',
-      adminEmail: 'priya@bangaloreestates.in',
-      adminPhone: '+91 98450 12345',
-      subscriptionTier: 'Basic (₹2,999/mo)',
-      userQuota: 5,
-      propertiesCount: 12,
-      dealsCount: 3,
-      status: 'Pending',
-    });
-
-    // Seed Super Admin User (ADM-01)
-    await User.create({
-      name: 'Platform Super Admin',
-      email: 'admin@propconnect.in',
-      password: adminPasswordHash,
-      phone: '+91 99999 00000',
-      role: 'super_admin',
-      adminRoleTitle: 'Super Admin (Full Access)',
-      permissions: fullPermissions,
-      agencyId: null,
-      status: 'Active',
-    });
-
-    // Seed Operations Admin User (ADM-02)
-    await User.create({
-      name: 'Vikram Malhotra',
-      email: 'vikram.m@propconnect.in',
-      password: adminPasswordHash,
-      phone: '+91 98765 11111',
-      role: 'super_admin',
-      adminRoleTitle: 'Operations & Onboarding Manager',
-      permissions: opsPermissions,
-      agencyId: null,
-      status: 'Active',
-    });
-
-    // Seed Finance Lead User (ADM-03)
-    await User.create({
-      name: 'Sneha Kapoor',
-      email: 'sneha.k@propconnect.in',
-      password: adminPasswordHash,
-      phone: '+91 98765 22222',
-      role: 'super_admin',
-      adminRoleTitle: 'Finance & Payouts Lead',
-      permissions: financePermissions,
-      agencyId: null,
-      status: 'Active',
-    });
-
-    // Seed Agency Admin User
-    await User.create({
-      name: 'Om Shivam',
-      email: 'om@propconnect.in',
-      password: agencyPasswordHash,
-      phone: '+91 98765 43210',
-      role: 'agency_admin',
-      adminRoleTitle: 'Agency Tenant Admin',
-      agencyId: agency1.id,
-      status: 'Active',
-    });
-
-    // Seed Broker User
-    await User.create({
-      name: 'Broker User',
-      email: 'broker@propconnect.in',
-      password: brokerPasswordHash,
-      phone: '+91 98222 33344',
-      role: 'broker',
-      adminRoleTitle: 'Registered Broker',
-      agencyId: agency1.id,
-      status: 'Active',
-    });
 
     console.log('[Seed] Database seeded successfully with Admin Team & Granular Permissions.');
   } catch (error: any) {

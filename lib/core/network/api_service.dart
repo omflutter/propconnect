@@ -6,20 +6,23 @@ class ApiService {
   /// Toggle to switch between Live Firebase Server and Local Server
   static bool isProduction = true;
 
-  /// Live Deployed Firebase Backend Base URL
+  /// Live Deployed Hostinger VPS Backend Base URL
+  static const String liveHostingerBaseUrl = 'http://72.61.229.6:5000/api/v1';
+
+  /// Live Deployed Firebase Backend Base URL (Fallback)
   static const String liveFirebaseBaseUrl = 'https://propconnect-b89bd.web.app/api/v1';
 
   static String get baseUrl {
     if (isProduction) {
-      return liveFirebaseBaseUrl;
+      return liveHostingerBaseUrl;
     }
     if (kIsWeb) {
-      return 'http://localhost:5001/api/v1';
+      return 'http://localhost:5000/api/v1';
     }
     if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5001/api/v1';
+      return 'http://10.0.2.2:5000/api/v1';
     }
-    return 'http://127.0.0.1:5001/api/v1';
+    return 'http://127.0.0.1:5000/api/v1';
   }
 
   static String? _authToken;

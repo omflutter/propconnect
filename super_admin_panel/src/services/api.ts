@@ -1,8 +1,16 @@
 const getApiBaseUrl = () => {
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return '/api/v1'; // Relative path for Firebase Hosting rewrite rules
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
   }
-  return 'http://localhost:5001/api/v1';
+  if (typeof window !== 'undefined') {
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname)) {
+      return `${window.location.protocol}//${window.location.hostname}:5000/api/v1`;
+    }
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return '/api/v1'; // Relative path for Firebase Hosting or reverse proxies
+    }
+  }
+  return 'http://localhost:5000/api/v1';
 };
 
 const API_BASE_URL = getApiBaseUrl();
