@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/models/property_model.dart';
+import 'package:propconnect/core/network/api_service.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 
@@ -72,6 +74,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
 
   // 7. Photo Gallery & Amenities
   List<String> _propertyImages = [];
+  bool _isUploadingImages = false;
   final List<String> _availableAmenities = [
     'Gym', 'Swimming Pool', '24/7 Security', 'Play Area', 'Club House',
     'Power Backup', 'Lift', 'Covered Parking', 'Garden / Park', 'Sea View', 'EV Charging'
@@ -479,6 +482,121 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     );
   }
 
+  Future<void> _pickAndUploadImages({required ImageSource source, bool multi = false}) async {
+    final picker = ImagePicker();
+    try {
+      List<XFile> pickedFiles = [];
+      if (source == ImageSource.gallery && multi) {
+        pickedFiles = await picker.pickMultiImage(
+          maxWidth: 1920,
+          maxHeight: 1080,
+          imageQuality: 85,
+        );
+      } else {
+        final single = await picker.pickImage(
+          source: source,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          imageQuality: 85,
+        );
+        if (single != null) {
+          pickedFiles.add(single);
+        }
+      }
+
+      if (pickedFiles.isEmpty) return;
+
+      setState(() {
+        _isUploadingImages = true;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+                const Gap(12),
+                Text('Uploading ${pickedFiles.length} real photo(s) to server...'),
+              ],
+            ),
+            backgroundColor: AppColors.primaryBlue,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+
+      List<String> b64List = [];
+      for (final f in pickedFiles) {
+        final bytes = await f.readAsBytes();
+        final b64 = base64Encode(bytes);
+        final mimeType = f.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+        b64List.add('data:$mimeType;base64,$b64');
+      }
+
+      final res = await ApiService.post('/upload/base64', {
+        if (b64List.length == 1) ...{
+          'image': b64List.first,
+          'filename': pickedFiles.first.name,
+        } else ...{
+          'images': b64List,
+        }
+      });
+
+      if (!mounted) return;
+
+      if (res['success'] == true) {
+        final data = res['data'];
+        List<String> newUrls = [];
+        if (data is Map<String, dynamic>) {
+          if (data['url'] != null) {
+            newUrls.add(data['url'].toString());
+          } else if (data['urls'] is List) {
+            newUrls.addAll((data['urls'] as List).map((u) => u.toString()));
+          }
+        }
+
+        setState(() {
+          _propertyImages.addAll(newUrls);
+          _isUploadingImages = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully uploaded ${newUrls.length} real photo(s)!'),
+            backgroundColor: Colors.teal,
+          ),
+        );
+      } else {
+        setState(() {
+          _isUploadingImages = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message']?.toString() ?? 'Failed to upload photo'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploadingImages = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showImagePickerModal() {
     final customUrlCtrl = TextEditingController();
 
@@ -488,147 +606,221 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            top: 24,
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.add_a_photo_outlined, color: AppColors.primaryBlue, size: 22),
-                      Gap(8),
-                      Text('Add Property Photos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const Gap(12),
-              const Text('Add Custom Image URL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
-              const Gap(6),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: customUrlCtrl,
-                      decoration: InputDecoration(
-                        hintText: 'https://example.com/photo.jpg',
-                        prefixIcon: const Icon(Icons.link, color: AppColors.iconColor),
-                        filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
+        return SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.only(
+              top: 24,
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.add_a_photo_outlined, color: AppColors.primaryBlue, size: 22),
+                        Gap(8),
+                        Text('Add Property Photos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ],
                     ),
-                  ),
-                  const Gap(8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryBlue,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    onPressed: () {
-                      final url = customUrlCtrl.text.trim();
-                      if (url.isNotEmpty) {
-                        setState(() {
-                          _propertyImages.add(url);
-                        });
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Photo added to gallery!'), backgroundColor: Colors.teal),
-                        );
-                      }
-                    },
-                    child: const Text('Add Photo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-              const Gap(20),
-              const Text('Select HD Real Estate Presets', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
-              const Gap(8),
-              SizedBox(
-                height: 170,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _presetPhotoLibrary.length,
-                  separatorBuilder: (context, index) => const Gap(10),
-                  itemBuilder: (context, index) {
-                    final item = _presetPhotoLibrary[index];
-                    final isAlreadyAdded = _propertyImages.contains(item['url']);
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          if (isAlreadyAdded) {
-                            _propertyImages.remove(item['url']);
-                          } else {
-                            _propertyImages.add(item['url']!);
-                          }
-                        });
-                        Navigator.pop(context);
-                      },
-                      child: Container(
-                        width: 130,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: isAlreadyAdded ? AppColors.primaryBlue : AppColors.border, width: isAlreadyAdded ? 2 : 1),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Stack(
-                          children: [
-                            Image.network(
-                              item['url']!,
-                              height: 170,
-                              width: 130,
-                              fit: BoxFit.cover,
-                              errorBuilder: (c, e, s) => Container(color: Colors.grey.shade200, child: const Icon(Icons.image)),
-                            ),
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                color: Colors.black.withValues(alpha: 0.75),
-                                child: Text(
-                                  item['title']!,
-                                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                            if (isAlreadyAdded)
-                              Positioned(
-                                top: 6,
-                                right: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(color: AppColors.primaryBlue, shape: BoxShape.circle),
-                                  child: const Icon(Icons.check, color: Colors.white, size: 14),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                  ],
                 ),
-              ),
-              const Gap(16),
-            ],
+                const Gap(16),
+
+                // Real Device File Upload Options
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.pop(context);
+                          _pickAndUploadImages(source: ImageSource.gallery, multi: true);
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryBlue.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.3)),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(Icons.photo_library_rounded, color: AppColors.primaryBlue, size: 30),
+                              Gap(8),
+                              Text('Choose Gallery', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryBlue)),
+                              Gap(2),
+                              Text('Select real photos', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Gap(12),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.pop(context);
+                          _pickAndUploadImages(source: ImageSource.camera);
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(Icons.camera_alt_rounded, color: Colors.teal, size: 30),
+                              Gap(8),
+                              Text('Take Photo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal)),
+                              Gap(2),
+                              Text('Use camera now', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Gap(20),
+                Row(
+                  children: [
+                    const Expanded(child: Divider(color: AppColors.border)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text('OR PASTE IMAGE URL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                    ),
+                    const Expanded(child: Divider(color: AppColors.border)),
+                  ],
+                ),
+                const Gap(12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: customUrlCtrl,
+                        decoration: InputDecoration(
+                          hintText: 'https://example.com/photo.jpg',
+                          prefixIcon: const Icon(Icons.link, color: AppColors.iconColor),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const Gap(8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () {
+                        final url = customUrlCtrl.text.trim();
+                        if (url.isNotEmpty) {
+                          setState(() {
+                            _propertyImages.add(url);
+                          });
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Photo added to gallery!'), backgroundColor: Colors.teal),
+                          );
+                        }
+                      },
+                      child: const Text('Add URL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+
+                const Gap(20),
+                const Text('Or Select Sample HD Presets', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                const Gap(8),
+                SizedBox(
+                  height: 160,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _presetPhotoLibrary.length,
+                    separatorBuilder: (context, index) => const Gap(10),
+                    itemBuilder: (context, index) {
+                      final item = _presetPhotoLibrary[index];
+                      final isAlreadyAdded = _propertyImages.contains(item['url']);
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (isAlreadyAdded) {
+                              _propertyImages.remove(item['url']);
+                            } else {
+                              _propertyImages.add(item['url']!);
+                            }
+                          });
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          width: 125,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: isAlreadyAdded ? AppColors.primaryBlue : AppColors.border, width: isAlreadyAdded ? 2 : 1),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Stack(
+                            children: [
+                              Image.network(
+                                item['url']!,
+                                height: 160,
+                                width: 125,
+                                fit: BoxFit.cover,
+                                errorBuilder: (c, e, s) => Container(color: Colors.grey.shade200, child: const Icon(Icons.image)),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                  color: Colors.black.withValues(alpha: 0.75),
+                                  child: Text(
+                                    item['title']!,
+                                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                              if (isAlreadyAdded)
+                                Positioned(
+                                  top: 6,
+                                  right: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(color: AppColors.primaryBlue, shape: BoxShape.circle),
+                                    child: const Icon(Icons.check, color: Colors.white, size: 14),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const Gap(16),
+              ],
+            ),
           ),
         );
       },
@@ -1344,58 +1536,124 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Property Photos (${_propertyImages.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      OutlinedButton.icon(
-                        onPressed: _showImagePickerModal,
-                        icon: const Icon(Icons.add_a_photo, size: 16),
-                        label: const Text('+ Add Photos'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.primaryBlue,
-                          side: const BorderSide(color: AppColors.primaryBlue),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.photo_library_rounded, color: AppColors.primaryBlue, size: 20),
+                            tooltip: 'Pick from Gallery',
+                            onPressed: _isUploadingImages ? null : () => _pickAndUploadImages(source: ImageSource.gallery, multi: true),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.camera_alt_rounded, color: Colors.teal, size: 20),
+                            tooltip: 'Take Photo',
+                            onPressed: _isUploadingImages ? null : () => _pickAndUploadImages(source: ImageSource.camera),
+                          ),
+                          const Gap(4),
+                          OutlinedButton(
+                            onPressed: _isUploadingImages ? null : _showImagePickerModal,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              side: const BorderSide(color: AppColors.primaryBlue),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: const Text('+ Options', style: TextStyle(fontSize: 12, color: AppColors.primaryBlue, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                   const Gap(12),
 
+                  if (_isUploadingImages)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlue.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.2)),
+                      ),
+                      child: const Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryBlue),
+                          ),
+                          Gap(12),
+                          Expanded(
+                            child: Text(
+                              'Uploading real photo(s) to Hostinger server...',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlue),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   if (_propertyImages.isEmpty)
                     GestureDetector(
-                      onTap: _showImagePickerModal,
+                      onTap: _isUploadingImages ? null : _showImagePickerModal,
                       child: Container(
                         width: double.infinity,
-                        height: 110,
+                        height: 120,
                         decoration: BoxDecoration(
                           color: const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
+                          border: Border.all(color: AppColors.border, style: BorderStyle.solid),
                         ),
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_photo_alternate_outlined, size: 36, color: AppColors.primaryBlue),
+                            Icon(Icons.add_photo_alternate_outlined, size: 38, color: AppColors.primaryBlue),
                             Gap(6),
                             Text('No photos uploaded yet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                            Text('Tap to add high-res photos or select presets', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                            Gap(2),
+                            Text('Tap to select from Gallery, Camera, or Presets', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                           ],
                         ),
                       ),
                     )
                   else
                     SizedBox(
-                      height: 115,
+                      height: 120,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        itemCount: _propertyImages.length,
+                        itemCount: _propertyImages.length + 1,
                         separatorBuilder: (context, index) => const Gap(10),
                         itemBuilder: (context, index) {
+                          if (index == _propertyImages.length) {
+                            return GestureDetector(
+                              onTap: _isUploadingImages ? null : _showImagePickerModal,
+                              child: Container(
+                                width: 100,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+                                ),
+                                child: const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add_circle_outline, color: AppColors.primaryBlue, size: 28),
+                                    Gap(4),
+                                    Text('Add More', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryBlue)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
                           final imgUrl = _propertyImages[index];
                           final isCover = index == 0;
 
                           return Stack(
                             children: [
                               Container(
-                                width: 115,
-                                height: 115,
+                                width: 120,
+                                height: 120,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: isCover ? AppColors.primaryBlue : AppColors.border, width: isCover ? 2 : 1),
