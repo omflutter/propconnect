@@ -9,6 +9,7 @@ import 'package:propconnect/core/models/property_model.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/services/auto_sync_service.dart';
 import 'package:propconnect/core/network/api_service.dart';
+import 'package:propconnect/core/utils/export_service.dart';
 
 class PropertiesScreen extends ConsumerStatefulWidget {
   const PropertiesScreen({super.key});
@@ -139,6 +140,238 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
       }
       return false;
     }
+  }
+
+  // Interactive Export to Excel Modal
+  void _showExportModal(List<PropertyModel> displayedProperties) {
+    final allProperties = ref.read(propertyProvider);
+    bool exportOnlyFiltered = _searchQuery.isNotEmpty && displayedProperties.length != allProperties.length;
+    bool isExporting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final targetList = exportOnlyFiltered ? displayedProperties : allProperties;
+
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const Gap(16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.table_view_rounded, color: Color(0xFF16A34A), size: 24),
+                    ),
+                    const Gap(12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Export Properties to Excel', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          Gap(2),
+                          Text('Generate a clean .xlsx / CSV spreadsheet file', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const Gap(18),
+
+                // Options Selection
+                const Text('Choose Export Scope', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
+                const Gap(8),
+
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      InkWell(
+                        onTap: () => setModalState(() => exportOnlyFiltered = false),
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              Icon(
+                                !exportOnlyFiltered ? Icons.radio_button_checked : Icons.radio_button_off,
+                                color: !exportOnlyFiltered ? const Color(0xFF16A34A) : Colors.grey,
+                                size: 20,
+                              ),
+                              const Gap(12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('All Properties (${allProperties.length})', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                    const Text('Export complete property portfolio with all details', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_searchQuery.isNotEmpty) ...[
+                        const Divider(height: 1),
+                        InkWell(
+                          onTap: () => setModalState(() => exportOnlyFiltered = true),
+                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  exportOnlyFiltered ? Icons.radio_button_checked : Icons.radio_button_off,
+                                  color: exportOnlyFiltered ? const Color(0xFF16A34A) : Colors.grey,
+                                  size: 20,
+                                ),
+                                const Gap(12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Filtered Results (${displayedProperties.length})', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                      Text('Matching search query "$_searchQuery"', style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const Gap(16),
+                const Text('Included Excel Columns', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textSecondary)),
+                const Gap(8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _buildColumnChip('Code & Title'),
+                    _buildColumnChip('Price & Status'),
+                    _buildColumnChip('BHK & Area (Sqft)'),
+                    _buildColumnChip('Carpet Area'),
+                    _buildColumnChip('Location & City'),
+                    _buildColumnChip('Owner Name & Phone'),
+                    _buildColumnChip('Amenities'),
+                    _buildColumnChip('Listing Date'),
+                  ],
+                ),
+
+                const Gap(24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: isExporting || targetList.isEmpty
+                        ? null
+                        : () async {
+                            setModalState(() => isExporting = true);
+                            Navigator.pop(ctx);
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Generating Excel export file...'),
+                                duration: Duration(seconds: 1),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+
+                            final filePath = await ExportService.exportPropertiesToExcel(
+                              properties: targetList,
+                              title: exportOnlyFiltered ? 'Filtered_Properties' : 'My_Properties',
+                            );
+
+                            if (!context.mounted) return;
+                            if (filePath != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Exported ${targetList.length} properties to Excel (.csv)!'),
+                                  backgroundColor: const Color(0xFF059669),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Export completed or shared successfully.'),
+                                  backgroundColor: Color(0xFF059669),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                    icon: isExporting
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.file_download_outlined, color: Colors.white, size: 20),
+                    label: Text(
+                      isExporting ? 'Exporting...' : 'Export ${targetList.length} Properties to Excel',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const Gap(12),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildColumnChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check, size: 12, color: Color(0xFF16A34A)),
+          const Gap(4),
+          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+        ],
+      ),
+    );
   }
 
   // Interactive Import & Feed Preview Modal Sheet
@@ -1066,6 +1299,17 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
         elevation: 0,
         centerTitle: false,
         actions: [
+          OutlinedButton.icon(
+            onPressed: () => _showExportModal(myProperties),
+            icon: const Icon(Icons.file_download_outlined, size: 16, color: Color(0xFF16A34A)),
+            label: const Text('Export', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold, fontSize: 13)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF16A34A)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+          ),
+          const Gap(8),
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
             child: OutlinedButton.icon(
@@ -1075,7 +1319,7 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primaryBlue),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               ),
             ),
           ),

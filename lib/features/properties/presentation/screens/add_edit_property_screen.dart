@@ -8,14 +8,16 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/models/property_model.dart';
+import 'package:propconnect/core/models/owner_model.dart';
 import 'package:propconnect/core/network/api_service.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 
 class AddEditPropertyScreen extends ConsumerStatefulWidget {
   final String propertyId; // 'new' for adding, otherwise editing
+  final OwnerModel? initialOwner;
 
-  const AddEditPropertyScreen({super.key, required this.propertyId});
+  const AddEditPropertyScreen({super.key, required this.propertyId, this.initialOwner});
 
   @override
   ConsumerState<AddEditPropertyScreen> createState() => _AddEditPropertyScreenState();
@@ -194,13 +196,13 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     _furnishedStatus = existingProp?.furnishedStatus ?? 'Semi-Furnished';
     _isPublic = existingProp?.isPublic ?? false;
 
-    _selectedOwnerId = existingProp?.ownerId;
-    _ownerNameCtrl = TextEditingController(text: existingProp?.ownerName ?? '');
-    _ownerPhonePrimaryCtrl = TextEditingController(text: existingProp?.ownerPhonePrimary ?? '');
-    _ownerPhoneSecondaryCtrl = TextEditingController(text: existingProp?.ownerPhoneSecondary ?? '');
-    _ownerEmailCtrl = TextEditingController(text: existingProp?.ownerEmail ?? '');
-    _ownerAddressCtrl = TextEditingController(text: existingProp?.ownerAddress ?? '');
-    _internalNotesCtrl = TextEditingController(text: existingProp?.internalNotes ?? '');
+    _selectedOwnerId = widget.initialOwner?.id ?? existingProp?.ownerId;
+    _ownerNameCtrl = TextEditingController(text: widget.initialOwner?.name ?? existingProp?.ownerName ?? '');
+    _ownerPhonePrimaryCtrl = TextEditingController(text: widget.initialOwner?.phonePrimary ?? existingProp?.ownerPhonePrimary ?? '');
+    _ownerPhoneSecondaryCtrl = TextEditingController(text: widget.initialOwner?.phoneSecondary ?? existingProp?.ownerPhoneSecondary ?? '');
+    _ownerEmailCtrl = TextEditingController(text: widget.initialOwner?.email ?? existingProp?.ownerEmail ?? '');
+    _ownerAddressCtrl = TextEditingController(text: widget.initialOwner?.address ?? existingProp?.ownerAddress ?? '');
+    _internalNotesCtrl = TextEditingController(text: widget.initialOwner?.notes ?? existingProp?.internalNotes ?? '');
 
     _maintenanceCtrl = TextEditingController(text: existingProp?.maintenanceCharges.replaceAll(RegExp(r'[^0-9]'), '') ?? '5000');
     _selectedAmenities = List.from(existingProp?.amenities ?? []);

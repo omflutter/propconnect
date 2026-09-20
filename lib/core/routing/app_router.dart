@@ -32,6 +32,8 @@ import 'package:propconnect/features/subscription/presentation/screens/subscript
 import 'package:propconnect/features/profile/presentation/screens/my_profile_screen.dart';
 import 'package:propconnect/features/properties/presentation/screens/add_edit_property_screen.dart';
 import 'package:propconnect/features/owners/presentation/screens/owners_screen.dart';
+import 'package:propconnect/features/owners/presentation/screens/owner_details_screen.dart';
+import 'package:propconnect/core/models/owner_model.dart';
 
 // Keys for StatefulShellRoute branches
 final _shellNavigatorHomeKey = GlobalKey<NavigatorState>(debugLabel: 'shellHome');
@@ -69,6 +71,7 @@ class AppRouter {
   static const String subscription = '/subscription';
   static const String profile = '/profile';
   static const String owners = '/owners';
+  static const String ownerDetails = '/owner-details/:id';
   static const String brokerDetails = '/broker-details/:id';
   static const String propertyDetails = '/property-details/:id';
   static const String collaborations = '/collaborations';
@@ -145,6 +148,14 @@ class AppRouter {
         builder: (context, state) => const OwnersScreen(),
       ),
       GoRoute(
+        path: ownerDetails,
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final owner = state.extra as OwnerModel?;
+          return OwnerDetailsScreen(ownerId: int.tryParse(id) ?? 0, initialOwner: owner);
+        },
+      ),
+      GoRoute(
         path: brokerDetails,
         builder: (context, state) {
           final id = state.pathParameters['id']!;
@@ -177,7 +188,8 @@ class AppRouter {
         path: addEditProperty,
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return AddEditPropertyScreen(propertyId: id);
+          final initialOwner = state.extra as OwnerModel?;
+          return AddEditPropertyScreen(propertyId: id, initialOwner: initialOwner);
         },
       ),
       GoRoute(

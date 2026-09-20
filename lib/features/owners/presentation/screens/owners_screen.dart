@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/models/owner_model.dart';
 import '../../../../core/providers/data_providers.dart';
 import '../../../../core/services/auth_storage_service.dart';
+import '../../../../core/utils/export_service.dart';
 
 class OwnersScreen extends ConsumerStatefulWidget {
   const OwnersScreen({super.key});
@@ -352,8 +354,29 @@ class _OwnersScreenState extends ConsumerState<OwnersScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Property Owners Directory', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Property Owners & Settings', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined, color: Color(0xFF16A34A)),
+            tooltip: 'Export Owners to Excel',
+            onPressed: () async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Generating Owners Directory Excel file...'), behavior: SnackBarBehavior.floating),
+              );
+              final allProperties = ref.read(propertyProvider);
+              final path = await ExportService.exportOwnersDirectoryToExcel(owners: allOwners, allProperties: allProperties);
+              if (!context.mounted) return;
+              if (path != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Exported ${allOwners.length} owners to Excel (.csv)!'),
+                    backgroundColor: const Color(0xFF059669),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(ownerProvider.notifier).fetchOwners(),
@@ -488,19 +511,26 @@ class _OwnersScreenState extends ConsumerState<OwnersScreen> {
             .toUpperCase()
         : 'O';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final allProperties = ref.watch(propertyProvider);
+    final count = allProperties.where((p) => p.ownerId == owner.id || (p.ownerPhonePrimary == owner.phonePrimary && owner.phonePrimary.isNotEmpty)).length;
+    final displayCount = count > 0 ? count : owner.propertyCount;
+
+    return InkWell(
+      onTap: () => context.push('/owner-details/${owner.id}', extra: owner),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           // Header: Avatar, Name, Badge, Menu
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -654,29 +684,45 @@ class _OwnersScreenState extends ConsumerState<OwnersScreen> {
             ),
           ],
 
-          // Footer: Properties Linked Badge
+          // Footer: Properties Linked Badge & View Details
           const Gap(12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.home_work_outlined, size: 14, color: Color(0xFF475569)),
-                const Gap(6),
-                Text(
-                  '${owner.propertyCount} ${owner.propertyCount == 1 ? 'Property' : 'Properties'} Assigned',
-                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
                 ),
-              ],
-            ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.home_work_outlined, size: 14, color: AppColors.primaryBlue),
+                    const Gap(6),
+                    Text(
+                      '$displayCount ${displayCount == 1 ? 'Property' : 'Properties'} Listed',
+                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
+                    ),
+                  ],
+                ),
+              ),
+              const Row(
+                children: [
+                  Text(
+                    'View Details',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
+                  ),
+                  Gap(4),
+                  Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primaryBlue),
+                ],
+              ),
+            ],
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

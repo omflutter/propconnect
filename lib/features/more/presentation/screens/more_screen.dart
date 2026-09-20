@@ -67,7 +67,7 @@ class MoreScreen extends StatelessWidget {
           _buildMenuItem(Icons.person_outline, 'Profile Settings', onTap: () => context.push('/profile')),
           _buildMenuItem(Icons.domain_add_outlined, 'Register Agency Profile', onTap: () => context.push('/create-agency')),
           _buildMenuItem(Icons.business_outlined, 'Agency Management', onTap: () => context.push('/agency-management')),
-          _buildMenuItem(Icons.people_alt_outlined, 'Property Owners Directory', onTap: () => context.push('/owners')),
+          _buildMenuItem(Icons.people_alt_outlined, 'Property Owners & Settings', onTap: () => context.push('/owners')),
           _buildMenuItem(Icons.subscriptions_outlined, 'Subscription & Billing', onTap: () => context.push('/subscription')),
           _buildMenuItem(Icons.analytics_outlined, 'Reports & Analytics', onTap: () => context.push('/analytics')),
           const Divider(height: 32),

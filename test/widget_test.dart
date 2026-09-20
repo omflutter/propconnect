@@ -3,6 +3,7 @@ import 'package:propconnect/core/models/commission_model.dart';
 import 'package:propconnect/core/models/deal_model.dart';
 import 'package:propconnect/core/models/property_model.dart';
 import 'package:propconnect/core/models/owner_model.dart';
+import 'package:propconnect/core/utils/export_service.dart';
 import 'package:propconnect/features/notifications/domain/models/notification_model.dart';
 
 void main() {
@@ -235,6 +236,60 @@ void main() {
 
       expect(propSale.price, '₹3.5 Cr (Negotiable)');
       expect(propSale.areaSqft, 2500.0);
+    });
+
+    test('ExportService generates valid Excel-compliant CSV with UTF-8 BOM and columns', () {
+      final prop = PropertyModel.fromJson({
+        'id': 'PR-901',
+        'title': 'Worli Penthouse',
+        'price': '₹4.5 Cr',
+        'type': 'Sale',
+        'purpose': 'Sale',
+        'bhk': '3 BHK',
+        'location': 'Worli, Mumbai',
+        'city': 'Mumbai',
+        'ownerName': 'Vikram Singhania',
+        'ownerPhonePrimary': '+91 98200 99887',
+      });
+
+      final owner = OwnerModel.fromJson({
+        'id': 101,
+        'name': 'Vikram Singhania',
+        'phonePrimary': '+91 98200 99887',
+        'email': 'vikram@singhania.com',
+        'idType': 'Aadhaar',
+        'idNumber': 'XXXX-XXXX-9988',
+        'notes': 'High net worth client',
+      });
+
+      // 1. Test Properties CSV Generation
+      final propertiesCsv = ExportService.generatePropertiesCsv([prop]);
+      expect(propertiesCsv.startsWith('\uFEFF'), isTrue, reason: 'Must include UTF-8 BOM for Microsoft Excel');
+      expect(propertiesCsv.contains('Property ID,Title,Type / Purpose,Property Type,Price'), isTrue);
+      expect(propertiesCsv.contains('Worli Penthouse'), isTrue);
+      expect(propertiesCsv.contains('Vikram Singhania'), isTrue);
+      expect(propertiesCsv.contains('₹4.5 Cr'), isTrue);
+
+      // 2. Test Owner Portfolio CSV Generation
+      final portfolioCsv = ExportService.generateOwnerPortfolioCsv(
+        owner: owner,
+        ownerProperties: [prop],
+      );
+      expect(portfolioCsv.startsWith('\uFEFF'), isTrue);
+      expect(portfolioCsv.contains('PROPCONNECT - OWNER PORTFOLIO REPORT'), isTrue);
+      expect(portfolioCsv.contains('Vikram Singhania'), isTrue);
+      expect(portfolioCsv.contains('Worli Penthouse'), isTrue);
+      expect(portfolioCsv.contains('High net worth client'), isTrue);
+
+      // 3. Test Owners Directory CSV Generation
+      final directoryCsv = ExportService.generateOwnersDirectoryCsv(
+        owners: [owner],
+        allProperties: [prop],
+      );
+      expect(directoryCsv.startsWith('\uFEFF'), isTrue);
+      expect(directoryCsv.contains('Owner ID,Full Name,Primary Phone,Secondary Phone'), isTrue);
+      expect(directoryCsv.contains('Vikram Singhania'), isTrue);
+      expect(directoryCsv.contains('vikram@singhania.com'), isTrue);
     });
   });
 }
