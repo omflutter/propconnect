@@ -12,6 +12,7 @@ import 'package:propconnect/core/models/owner_model.dart';
 import 'package:propconnect/core/network/api_service.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
+import 'package:propconnect/core/utils/location_helper.dart';
 
 class AddEditPropertyScreen extends ConsumerStatefulWidget {
   final String propertyId; // 'new' for adding, otherwise editing
@@ -280,6 +281,59 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     return '₹$val';
   }
 
+  void _applySelectedLocation({
+    required String rawLocation,
+    Map<String, dynamic>? addressDetails,
+    double? lat,
+    double? lon,
+  }) {
+    final details = LocationHelper.extractDetails(
+      rawLocation: rawLocation,
+      addressDetails: addressDetails,
+      latitude: lat,
+      longitude: lon,
+    );
+
+    setState(() {
+      _locationCtrl.text = details.location;
+      if (details.city.isNotEmpty) {
+        _cityCtrl.text = details.city;
+      }
+      if (details.state.isNotEmpty) {
+        _stateCtrl.text = details.state;
+      }
+      if (details.area.isNotEmpty) {
+        _areaCtrl.text = details.area;
+      }
+      if (details.googleMapUrl != null && details.googleMapUrl!.isNotEmpty) {
+        _googleMapUrlCtrl.text = details.googleMapUrl!;
+      }
+      if (details.country.isNotEmpty) {
+        _countryCtrl.text = details.country;
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+            const Gap(8),
+            Expanded(
+              child: Text(
+                'Auto-picked City: ${details.city.isNotEmpty ? details.city : "Detected"}, State: ${details.state.isNotEmpty ? details.state : "Detected"}',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF059669),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   void _showLocationSearchPicker() {
     showModalBottomSheet(
       context: context,
@@ -290,7 +344,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
       ),
       builder: (context) {
         String searchQuery = '';
-        List<String> apiResults = [];
+        List<Map<String, dynamic>> apiResults = [];
         bool isLoadingApi = false;
         Timer? debounceTimer;
 
@@ -319,10 +373,10 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
 
               if (response.statusCode == 200) {
                 final List parsed = jsonDecode(response.body);
-                final List<String> results = parsed.map((item) {
-                  final String displayName = item['display_name'] ?? '';
-                  return displayName;
-                }).where((str) => str.isNotEmpty).toList();
+                final List<Map<String, dynamic>> results = parsed
+                    .map((item) => Map<String, dynamic>.from(item as Map))
+                    .where((item) => ((item['display_name'] as String?) ?? '').isNotEmpty)
+                    .toList();
 
                 setModalState(() {
                   apiResults = results;
@@ -405,7 +459,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                   const Gap(16),
 
                   if (searchQuery.trim().isNotEmpty && apiResults.isNotEmpty) ...[
-                    const Text('Live Location Results', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryBlue)),
+                    const Text('Live Location Results (Auto-picks City & State)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryBlue)),
                     const Gap(8),
                     Expanded(
                       child: ListView.separated(
@@ -413,14 +467,31 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                         separatorBuilder: (context, index) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           if (index < apiResults.length) {
-                            final locName = apiResults[index];
+                            final item = apiResults[index];
+                            final locName = (item['display_name'] as String?) ?? '';
+                            final address = item['address'] as Map<String, dynamic>?;
+                            final lat = double.tryParse(item['lat']?.toString() ?? '');
+                            final lon = double.tryParse(item['lon']?.toString() ?? '');
+
+                            // Quick preview of detected city/state
+                            final preview = LocationHelper.extractDetails(rawLocation: locName, addressDetails: address);
+
                             return ListTile(
                               leading: const Icon(Icons.location_on, color: AppColors.primaryBlue),
                               title: Text(locName, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+                              subtitle: preview.city.isNotEmpty
+                                  ? Text(
+                                      'Auto-picks: ${preview.city}, ${preview.state}',
+                                      style: const TextStyle(color: Color(0xFF059669), fontSize: 11, fontWeight: FontWeight.w600),
+                                    )
+                                  : null,
                               onTap: () {
-                                setState(() {
-                                  _locationCtrl.text = locName;
-                                });
+                                _applySelectedLocation(
+                                  rawLocation: locName,
+                                  addressDetails: address,
+                                  lat: lat,
+                                  lon: lon,
+                                );
                                 Navigator.pop(context);
                               },
                             );
@@ -430,9 +501,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                               leading: const Icon(Icons.add_location_alt_outlined, color: Colors.green),
                               title: Text('Use custom location "$customLoc"', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13)),
                               onTap: () {
-                                setState(() {
-                                  _locationCtrl.text = customLoc;
-                                });
+                                _applySelectedLocation(rawLocation: customLoc);
                                 Navigator.pop(context);
                               },
                             );
@@ -441,7 +510,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                       ),
                     ),
                   ] else ...[
-                    const Text('Popular Real Estate Hubs', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                    const Text('Popular Real Estate Hubs (Auto-picks City & State)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                     const Gap(8),
                     Expanded(
                       child: ListView.separated(
@@ -450,13 +519,19 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                         itemBuilder: (context, index) {
                           if (index < popularFiltered.length) {
                             final loc = popularFiltered[index];
+                            final preview = LocationHelper.extractFromText(loc);
+
                             return ListTile(
                               leading: const Icon(Icons.location_on_outlined, color: AppColors.primaryBlue),
                               title: Text(loc, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                              subtitle: preview.city.isNotEmpty
+                                  ? Text(
+                                      'Auto-picks: ${preview.city}, ${preview.state}',
+                                      style: const TextStyle(color: Color(0xFF059669), fontSize: 11.5, fontWeight: FontWeight.w600),
+                                    )
+                                  : null,
                               onTap: () {
-                                setState(() {
-                                  _locationCtrl.text = loc;
-                                });
+                                _applySelectedLocation(rawLocation: loc);
                                 Navigator.pop(context);
                               },
                             );
@@ -466,9 +541,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                               leading: const Icon(Icons.add_location_alt_outlined, color: Colors.green),
                               title: Text('Use custom location "$customLoc"', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 14)),
                               onTap: () {
-                                setState(() {
-                                  _locationCtrl.text = customLoc;
-                                });
+                                _applySelectedLocation(rawLocation: customLoc);
                                 Navigator.pop(context);
                               },
                             );
@@ -1443,10 +1516,16 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                       Expanded(
                         child: TextFormField(
                           controller: _cityCtrl,
+                          onChanged: (val) => setState(() {}),
                           decoration: InputDecoration(
                             labelText: 'City',
                             hintText: 'e.g. Mumbai',
+                            helperText: _cityCtrl.text.isNotEmpty ? 'Auto-picked from location' : null,
+                            helperStyle: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w500, fontSize: 11),
                             prefixIcon: const Icon(Icons.location_city_outlined, color: AppColors.iconColor, size: 20),
+                            suffixIcon: _cityCtrl.text.isNotEmpty
+                                ? const Icon(Icons.check_circle, color: Color(0xFF059669), size: 16)
+                                : null,
                             filled: true,
                             fillColor: const Color(0xFFF8FAFC),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
@@ -1457,10 +1536,16 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                       Expanded(
                         child: TextFormField(
                           controller: _stateCtrl,
+                          onChanged: (val) => setState(() {}),
                           decoration: InputDecoration(
                             labelText: 'State',
                             hintText: 'e.g. Maharashtra',
+                            helperText: _stateCtrl.text.isNotEmpty ? 'Auto-picked from location' : null,
+                            helperStyle: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w500, fontSize: 11),
                             prefixIcon: const Icon(Icons.map_outlined, color: AppColors.iconColor, size: 20),
+                            suffixIcon: _stateCtrl.text.isNotEmpty
+                                ? const Icon(Icons.check_circle, color: Color(0xFF059669), size: 16)
+                                : null,
                             filled: true,
                             fillColor: const Color(0xFFF8FAFC),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
@@ -1484,10 +1569,84 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                   const Gap(14),
                   TextFormField(
                     controller: _googleMapUrlCtrl,
+                    onChanged: (val) async {
+                      if (val.trim().isEmpty) return;
+                      final parsed = LocationHelper.parseGoogleMapsUrl(val);
+                      if (parsed != null) {
+                        if (parsed.latitude != null && parsed.longitude != null && parsed.city.isEmpty) {
+                          // Reverse geocode if only coordinates available
+                          final rev = await LocationHelper.reverseGeocode(parsed.latitude!, parsed.longitude!);
+                          if (rev != null && mounted) {
+                            setState(() {
+                              if (_locationCtrl.text.isEmpty) _locationCtrl.text = rev.location;
+                              if (rev.city.isNotEmpty) _cityCtrl.text = rev.city;
+                              if (rev.state.isNotEmpty) _stateCtrl.text = rev.state;
+                              if (rev.area.isNotEmpty && _areaCtrl.text.isEmpty) _areaCtrl.text = rev.area;
+                            });
+                            return;
+                          }
+                        }
+                        if (mounted) {
+                          setState(() {
+                            if (_locationCtrl.text.isEmpty && parsed.location.isNotEmpty) {
+                              _locationCtrl.text = parsed.location;
+                            }
+                            if (parsed.city.isNotEmpty) _cityCtrl.text = parsed.city;
+                            if (parsed.state.isNotEmpty) _stateCtrl.text = parsed.state;
+                            if (parsed.area.isNotEmpty && _areaCtrl.text.isEmpty) _areaCtrl.text = parsed.area;
+                          });
+                        }
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: 'Google Maps Pin URL (Optional)',
-                      hintText: 'https://maps.google.com/?q=...',
+                      hintText: 'https://maps.google.com/?q=... or https://goo.gl/...',
+                      helperText: 'Paste Google Maps URL to auto-extract location, city & state',
+                      helperStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                       prefixIcon: const Icon(Icons.pin_drop_outlined, color: AppColors.iconColor, size: 20),
+                      suffixIcon: _googleMapUrlCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.auto_fix_high, color: AppColors.primaryBlue, size: 18),
+                              tooltip: 'Auto-pick from Google Maps URL',
+                              onPressed: () async {
+                                final parsed = LocationHelper.parseGoogleMapsUrl(_googleMapUrlCtrl.text);
+                                if (parsed != null) {
+                                  if (parsed.latitude != null && parsed.longitude != null && parsed.city.isEmpty) {
+                                    final rev = await LocationHelper.reverseGeocode(parsed.latitude!, parsed.longitude!);
+                                    if (!context.mounted) return;
+                                    if (rev != null) {
+                                      setState(() {
+                                        _locationCtrl.text = rev.location;
+                                        if (rev.city.isNotEmpty) _cityCtrl.text = rev.city;
+                                        if (rev.state.isNotEmpty) _stateCtrl.text = rev.state;
+                                        if (rev.area.isNotEmpty) _areaCtrl.text = rev.area;
+                                      });
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Auto-picked: ${rev.city}, ${rev.state} from Google Maps Pin!'),
+                                          backgroundColor: const Color(0xFF059669),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                  }
+                                  if (!context.mounted) return;
+                                  setState(() {
+                                    if (parsed.location.isNotEmpty) _locationCtrl.text = parsed.location;
+                                    if (parsed.city.isNotEmpty) _cityCtrl.text = parsed.city;
+                                    if (parsed.state.isNotEmpty) _stateCtrl.text = parsed.state;
+                                    if (parsed.area.isNotEmpty) _areaCtrl.text = parsed.area;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Auto-picked: ${parsed.city}, ${parsed.state} from Google Maps!'),
+                                      backgroundColor: const Color(0xFF059669),
+                                    ),
+                                  );
+                                }
+                              },
+                            )
+                          : null,
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),

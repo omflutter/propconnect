@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:http/http.dart' as http;
 import 'package:propconnect/core/constants/app_colors.dart';
+import 'package:propconnect/core/utils/location_helper.dart';
 
 class LiveLocationSelect extends StatefulWidget {
   final String? value;
   final ValueChanged<String> onChanged;
+  final ValueChanged<LocationDetails>? onLocationDetailsSelected;
   final String label;
   final String placeholder;
   final String searchPlaceholder;
@@ -18,6 +20,7 @@ class LiveLocationSelect extends StatefulWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.onLocationDetailsSelected,
     this.label = 'Operating Cities / Location',
     this.placeholder = 'Search & select location...',
     this.searchPlaceholder = 'Type city, locality, district or PIN code...',
@@ -56,6 +59,7 @@ class _LiveLocationSelectState extends State<LiveLocationSelect> {
         onSelected: (loc) {
           widget.onChanged(loc);
         },
+        onDetailsSelected: widget.onLocationDetailsSelected,
       ),
     );
   }
@@ -161,11 +165,13 @@ class _LocationSearchModal extends StatefulWidget {
   final String initialValue;
   final String searchPlaceholder;
   final ValueChanged<String> onSelected;
+  final ValueChanged<LocationDetails>? onDetailsSelected;
 
   const _LocationSearchModal({
     required this.initialValue,
     required this.searchPlaceholder,
     required this.onSelected,
+    this.onDetailsSelected,
   });
 
   @override
@@ -176,6 +182,7 @@ class _LocationSearchModalState extends State<_LocationSearchModal> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounceTimer;
   List<String> _apiResults = [];
+  List<Map<String, dynamic>> _rawApiResults = [];
   bool _isLoading = false;
 
   @override
@@ -199,6 +206,7 @@ class _LocationSearchModalState extends State<_LocationSearchModal> {
     if (query.trim().length < 2) {
       setState(() {
         _apiResults = [];
+        _rawApiResults = [];
         _isLoading = false;
       });
       return;
@@ -220,13 +228,14 @@ class _LocationSearchModalState extends State<_LocationSearchModal> {
 
         if (res.statusCode == 200 && mounted) {
           final List parsed = jsonDecode(res.body);
-          final results = parsed
-              .map((item) => (item['display_name'] as String?) ?? '')
-              .where((str) => str.isNotEmpty)
+          final raw = parsed
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .where((item) => ((item['display_name'] as String?) ?? '').isNotEmpty)
               .toList();
 
           setState(() {
-            _apiResults = results;
+            _rawApiResults = raw;
+            _apiResults = raw.map((r) => (r['display_name'] as String?) ?? '').toList();
             _isLoading = false;
           });
         } else if (mounted) {
@@ -407,21 +416,40 @@ class _LocationSearchModalState extends State<_LocationSearchModal> {
                       ),
                     ),
                   ),
-                  ..._apiResults.map(
-                    (res) => ListTile(
+                  ...List.generate(_apiResults.length, (index) {
+                    final res = _apiResults[index];
+                    final rawItem = _rawApiResults.length > index ? _rawApiResults[index] : null;
+                    final address = rawItem?['address'] as Map<String, dynamic>?;
+                    final lat = double.tryParse(rawItem?['lat']?.toString() ?? '');
+                    final lon = double.tryParse(rawItem?['lon']?.toString() ?? '');
+                    final details = LocationHelper.extractDetails(
+                      rawLocation: res,
+                      addressDetails: address,
+                      latitude: lat,
+                      longitude: lon,
+                    );
+
+                    return ListTile(
                       dense: true,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       leading: const Icon(Icons.place_rounded, color: AppColors.primaryBlue, size: 18),
                       title: Text(
-                        res,
+                        details.location,
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
                       ),
+                      subtitle: details.city.isNotEmpty
+                          ? Text(
+                              'Auto-picks: ${details.city}, ${details.state}',
+                              style: const TextStyle(color: Color(0xFF059669), fontSize: 11, fontWeight: FontWeight.w600),
+                            )
+                          : null,
                       onTap: () {
-                        widget.onSelected(res);
+                        widget.onSelected(details.location);
+                        widget.onDetailsSelected?.call(details);
                         Navigator.pop(context);
                       },
-                    ),
-                  ),
+                    );
+                  }),
                   const Gap(12),
                 ],
 
@@ -446,22 +474,32 @@ class _LocationSearchModalState extends State<_LocationSearchModal> {
                     ),
                   ),
                   ...filteredPopular.map(
-                    (city) => ListTile(
-                      dense: true,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      leading: const Icon(Icons.location_city_rounded, color: AppColors.textSecondary, size: 18),
-                      title: Text(
-                        city,
-                        style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-                      ),
-                      trailing: widget.initialValue == city
-                          ? const Icon(Icons.check_circle, color: AppColors.primaryBlue, size: 18)
-                          : null,
-                      onTap: () {
-                        widget.onSelected(city);
-                        Navigator.pop(context);
-                      },
-                    ),
+                    (city) {
+                      final details = LocationHelper.extractFromText(city);
+                      return ListTile(
+                        dense: true,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        leading: const Icon(Icons.location_city_rounded, color: AppColors.textSecondary, size: 18),
+                        title: Text(
+                          details.location,
+                          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                        ),
+                        subtitle: details.city.isNotEmpty
+                            ? Text(
+                                'Auto-picks: ${details.city}, ${details.state}',
+                                style: const TextStyle(color: Color(0xFF059669), fontSize: 11, fontWeight: FontWeight.w600),
+                              )
+                            : null,
+                        trailing: widget.initialValue == city
+                            ? const Icon(Icons.check_circle, color: AppColors.primaryBlue, size: 18)
+                            : null,
+                        onTap: () {
+                          widget.onSelected(details.location);
+                          widget.onDetailsSelected?.call(details);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
                   ),
                 ],
 

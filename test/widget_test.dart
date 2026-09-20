@@ -4,6 +4,7 @@ import 'package:propconnect/core/models/deal_model.dart';
 import 'package:propconnect/core/models/property_model.dart';
 import 'package:propconnect/core/models/owner_model.dart';
 import 'package:propconnect/core/utils/export_service.dart';
+import 'package:propconnect/core/utils/location_helper.dart';
 import 'package:propconnect/features/notifications/domain/models/notification_model.dart';
 
 void main() {
@@ -290,6 +291,62 @@ void main() {
       expect(directoryCsv.contains('Owner ID,Full Name,Primary Phone,Secondary Phone'), isTrue);
       expect(directoryCsv.contains('Vikram Singhania'), isTrue);
       expect(directoryCsv.contains('vikram@singhania.com'), isTrue);
+    });
+
+    test('LocationHelper automatically extracts City, State, and Area without manual re-typing', () {
+      // 1. Popular Indian Real Estate Hubs
+      final mumbai = LocationHelper.extractFromText('Bandra West, Mumbai');
+      expect(mumbai.city, 'Mumbai');
+      expect(mumbai.state, 'Maharashtra');
+      expect(mumbai.area, 'Bandra West');
+
+      final bangalore = LocationHelper.extractFromText('Indiranagar, Bangalore');
+      expect(bangalore.city, 'Bengaluru');
+      expect(bangalore.state, 'Karnataka');
+      expect(bangalore.area, 'Indiranagar');
+
+      final gurugram = LocationHelper.extractFromText('Cyber City, Gurugram');
+      expect(gurugram.city, 'Gurugram');
+      expect(gurugram.state, 'Haryana');
+      expect(gurugram.area, 'Cyber City');
+
+      final delhi = LocationHelper.extractFromText('Connaught Place, New Delhi');
+      expect(delhi.city, 'New Delhi');
+      expect(delhi.state, 'Delhi');
+
+      final pune = LocationHelper.extractFromText('Koregaon Park, Pune');
+      expect(pune.city, 'Pune');
+      expect(pune.state, 'Maharashtra');
+
+      // 2. Structured Nominatim OpenStreetMap response (live search)
+      final nominatimAddress = {
+        'suburb': 'Worli',
+        'city': 'Mumbai',
+        'state': 'Maharashtra',
+        'country': 'India',
+        'postcode': '400018',
+      };
+      final liveSearch = LocationHelper.extractDetails(
+        rawLocation: 'Worli, Mumbai, Mumbai Suburban, Maharashtra, 400018, India',
+        addressDetails: nominatimAddress,
+        latitude: 19.0176,
+        longitude: 72.8302,
+      );
+      expect(liveSearch.city, 'Mumbai');
+      expect(liveSearch.state, 'Maharashtra');
+      expect(liveSearch.area, 'Worli');
+      expect(liveSearch.location, 'Worli, Mumbai');
+      expect(liveSearch.googleMapUrl, 'https://www.google.com/maps/search/?api=1&query=19.0176,72.8302');
+
+      // 3. Google Maps URL parsing
+      final googleMapPlace = LocationHelper.parseGoogleMapsUrl(
+        'https://www.google.com/maps/place/Worli,+Mumbai,+Maharashtra/@19.0176,72.8302,15z',
+      );
+      expect(googleMapPlace, isNotNull);
+      expect(googleMapPlace!.city, 'Mumbai');
+      expect(googleMapPlace.state, 'Maharashtra');
+      expect(googleMapPlace.latitude, 19.0176);
+      expect(googleMapPlace.longitude, 72.8302);
     });
   });
 }
