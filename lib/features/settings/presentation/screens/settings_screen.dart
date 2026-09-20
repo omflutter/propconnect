@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -76,6 +77,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (val) => setState(() => _twoFactor = val),
           ),
           
+          const Gap(24),
+          _buildSectionHeader('Owners & Inventory'),
+          _buildSettingsTile(
+            title: 'Property Owners & Settings',
+            subtitle: 'Manage property owners, KYC verification & properties',
+            icon: Icons.people_alt_outlined,
+            onTap: () => context.push('/owners'),
+          ),
+
           const Gap(24),
           _buildSectionHeader('Agency Settings (Admin)'),
           _buildSettingsTile(

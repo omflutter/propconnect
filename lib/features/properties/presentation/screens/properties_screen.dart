@@ -1299,6 +1299,11 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
         elevation: 0,
         centerTitle: false,
         actions: [
+          IconButton(
+            onPressed: () => context.push('/owners'),
+            icon: const Icon(Icons.people_alt_outlined, color: AppColors.primaryBlue),
+            tooltip: 'Property Owners & Settings',
+          ),
           OutlinedButton.icon(
             onPressed: () => _showExportModal(myProperties),
             icon: const Icon(Icons.file_download_outlined, size: 16, color: Color(0xFF16A34A)),

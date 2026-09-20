@@ -789,6 +789,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
                 _buildDrawerItem(context, Icons.home, 'Home', true),
+                _buildDrawerItem(context, Icons.people_alt_outlined, 'Property Owners & Settings', false, route: '/owners'),
                 _buildDrawerItem(context, Icons.handshake, 'Collaborations', false, route: '/collaborations'),
                 _buildDrawerItem(context, Icons.person, 'My Profile', false, route: '/profile'),
                 
