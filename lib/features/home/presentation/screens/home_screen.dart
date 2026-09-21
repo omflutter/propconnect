@@ -6,6 +6,7 @@ import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/providers/user_role_provider.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
+import 'package:propconnect/core/services/push_notification_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +27,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ref.read(propertyProvider.notifier).fetchProperties();
       }
       ref.read(unreadMessagesProvider.notifier).fetchUnreadCount();
+      PushNotificationService().checkAndPromptOnFirstLaunch(context: context);
     });
   }
 

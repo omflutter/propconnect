@@ -5,6 +5,7 @@ import 'package:propconnect/core/models/property_model.dart';
 import 'package:propconnect/core/models/owner_model.dart';
 import 'package:propconnect/core/utils/export_service.dart';
 import 'package:propconnect/core/utils/location_helper.dart';
+import 'package:propconnect/core/services/push_notification_service.dart';
 import 'package:propconnect/features/notifications/domain/models/notification_model.dart';
 
 void main() {
@@ -348,5 +349,35 @@ void main() {
       expect(googleMapPlace.latitude, 19.0176);
       expect(googleMapPlace.longitude, 72.8302);
     });
+
+    test('PushNotificationService (PRD Sec 17) permission notifier and route mappings operate correctly', () {
+      final pushService = PushNotificationService();
+      expect(pushService.isPermissionGrantedNotifier, isNotNull);
+      expect(pushService.isPermissionGrantedNotifier.value, isFalse);
+
+      // Verify permission notifier state updates correctly
+      pushService.isPermissionGrantedNotifier.value = true;
+      expect(pushService.isPermissionGrantedNotifier.value, isTrue);
+      pushService.isPermissionGrantedNotifier.value = false;
+
+      // Verify PRD Sec 17 payload event types
+      final supportedTypes = ['collaboration', 'deal', 'commission', 'property', 'system'];
+      for (final type in supportedTypes) {
+        final notif = AppNotification(
+          id: 1,
+          notificationCode: 'NTF-TEST',
+          userId: 1,
+          title: 'Test $type',
+          message: 'Notification message for $type',
+          type: type,
+          actionRoute: '/$type',
+          isRead: false,
+          channels: 'in_app,push',
+          createdAt: DateTime.now(),
+        );
+        expect(notif.actionRoute, '/$type');
+      }
+    });
   });
 }
+

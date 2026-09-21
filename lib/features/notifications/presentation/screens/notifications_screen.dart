@@ -28,6 +28,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.initState();
     _fetchNotifications();
 
+    // Check permission state for UI banner
+    PushNotificationService().checkPermissionStatus();
+
     // Auto-refresh when a push notification arrives while on this screen
     _pushSubscription = PushNotificationService.onMessageReceivedStream.stream.listen((_) {
       _fetchNotifications(silent: true);
@@ -277,6 +280,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
       body: Column(
         children: [
+          // Push Permission Banner (if not granted)
+          ValueListenableBuilder<bool>(
+            valueListenable: PushNotificationService().isPermissionGrantedNotifier,
+            builder: (context, isGranted, _) {
+              if (isGranted) return const SizedBox.shrink();
+              return _buildPermissionBanner();
+            },
+          ),
+
           // Filter Chips
           _buildFilterBar(),
           const Divider(height: 1, color: AppColors.border),
@@ -284,6 +296,75 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           // Notification Content
           Expanded(
             child: _buildBody(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPermissionBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primaryBlue.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.notifications_active_outlined, color: AppColors.primaryBlue, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Enable Push Notifications',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Get real-time alerts when partner brokers co-broker, buyers submit inquiries, or deal stages advance.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () async {
+                    await PushNotificationService().requestNotificationPermission(
+                      context: context,
+                      showSettingsIfDenied: true,
+                    );
+                    setState(() {});
+                  },
+                  child: const Text('Turn On Notifications', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
           ),
         ],
       ),
