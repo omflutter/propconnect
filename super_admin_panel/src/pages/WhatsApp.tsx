@@ -57,7 +57,7 @@ export function WhatsApp() {
   const [selectedPayload, setSelectedPayload] = useState<{ title: string; data: any } | null>(null);
 
   const templates = [
-    { name: 'Super Admin Test Ping', code: 'wa_admin_ping_v1', category: 'Utility', status: 'Pending Interakt Approval', sample: 'Hello {{1}}, this is an alert from PropConnect: {{2}} at {{3}}.' },
+    { name: 'Super Admin Test Ping', code: 'wa_admin_ping_v1', category: 'Utility', status: 'Pending Interakt Approval', sample: 'Hello {{1}}, this is an alert from PropConnect: {{2}} at {{3}}. Regards, PropConnect Team.' },
     { name: 'Property Share & Brochure', code: 'wa_prop_brochure_v1', category: 'Utility', status: 'Pending Interakt Approval', sample: 'Hello {{1}}, here is the brochure for {{2}} in {{3}} priced at {{4}}. Link: {{5}}' },
     { name: 'Collaboration Notification', code: 'wa_collab_req_v2', category: 'Transactional', status: 'Pending Interakt Approval', sample: 'New collaboration request for property {{1}} from {{2}}.' },
     { name: 'Deal Status Update', code: 'wa_deal_update_v1', category: 'Transactional', status: 'Pending Interakt Approval', sample: 'Deal {{1}} status updated to {{2}}.' },
@@ -268,7 +268,7 @@ export function WhatsApp() {
             <ol style={{ paddingLeft: 18, margin: 0, lineHeight: 1.6 }}>
               <li>Open your Interakt dashboard at <a href="https://app.interakt.ai/templates/create" target="_blank" rel="noreferrer" style={{ color: 'var(--primary-blue)', fontWeight: 600 }}>app.interakt.ai/templates/create <ExternalLink size={11} style={{ display: 'inline' }} /></a></li>
               <li>Set Template Name: <code style={{ background: '#e2e8f0', padding: '2px 6px', borderRadius: 4 }}>wa_admin_ping_v1</code>, Category: <strong>Utility</strong>, Language: <strong>English</strong>.</li>
-              <li>Body Text: <code>Hello {'{{1}}'}, this is a verified notification from PropConnect: {'{{2}}'} at {'{{3}}'}.</code></li>
+              <li>Body Text: <code>Hello {'{{1}}'}, this is a verified notification from PropConnect: {'{{2}}'} at {'{{3}}'}. Regards, PropConnect Team.</code></li>
               <li>Click <strong>Submit to Meta</strong> (approval typically completes within 2-5 minutes).</li>
             </ol>
           </div>
