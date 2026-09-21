@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { Message } from '../models/chat.model';
+import { NotificationService } from '../services/notification.service';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
@@ -205,6 +206,20 @@ export const sendMessage = async (req: Request, res: Response) => {
     });
 
     const plainMsg = message.dataValues || message.get();
+
+    // PRD Sec 17: Dispatch Push Notification to Receiver
+    const parsedReceiverId = parseInt(String(receiverId), 10);
+    if (!isNaN(parsedReceiverId) && parsedReceiverId > 0) {
+      NotificationService.createAndSendNotification({
+        userId: parsedReceiverId,
+        title: senderName || 'New Chat Message',
+        message: messageText.trim(),
+        type: 'chat' as any,
+        actionRoute: `/chat`,
+        channels: ['in_app', 'push'],
+      }).catch((err) => console.warn('[Chat Push Notification Error]', err));
+    }
+
     return successResponse(res, 'Message sent successfully in PostgreSQL!', plainMsg, 201);
   } catch (error: any) {
     return errorResponse(res, 'Failed to send message', error.message || error);

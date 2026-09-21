@@ -307,6 +307,9 @@ class PushNotificationService {
 
     // Default route mapping based on PRD Sec 17 notification types
     switch (type) {
+      case 'chat':
+        _navigate(AppRouter.chat);
+        break;
       case 'collaboration':
         _navigate(AppRouter.collaborations);
         break;
