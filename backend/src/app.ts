@@ -10,6 +10,7 @@ import { requestLogger } from './middlewares/logger.middleware';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { sequelize } from './config/database';
 import { seedInitialData } from './services/seed.service';
+import { Referral } from './models/referral.model';
 
 const app: Application = express();
 
@@ -38,13 +39,36 @@ app.use(async (req, res, next) => {
   if (!isDbInitialized) {
     try {
       await sequelize.sync();
-      await sequelize.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS "ownerId" INTEGER;');
-      await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayKeyId" VARCHAR(255) DEFAULT \'rzp_live_89123849102934\';');
-      await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayKeySecret" VARCHAR(255) DEFAULT \'rzp_sec_99182391028349\';');
-      await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayWebhookSecret" VARCHAR(255) DEFAULT \'whsec_rzp_live_109283\';');
-      await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "stripePublishableKey" VARCHAR(255) DEFAULT \'pk_live_51M091823981023984\';');
-      await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "stripeSecretKey" VARCHAR(255) DEFAULT \'sk_live_51M091823981023984_sec_99182\';');
-      await sequelize.query('ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "stripeWebhookSecret" VARCHAR(255) DEFAULT \'whsec_stripe_live_991823\';');
+      // Safe column additions for PostgreSQL / MySQL
+      const safeQueries = [
+        'ALTER TABLE properties ADD COLUMN IF NOT EXISTS "ownerId" INTEGER;',
+        'ALTER TABLE properties ADD COLUMN IF NOT EXISTS "brokerId" INTEGER;',
+        'ALTER TABLE properties ADD COLUMN IF NOT EXISTS "pincode" VARCHAR(16) DEFAULT \'\';',
+        'ALTER TABLE properties ADD COLUMN pincode VARCHAR(16) DEFAULT \'\';',
+        'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "referralCode" VARCHAR(64);',
+        'ALTER TABLE agencies ADD COLUMN referralCode VARCHAR(64);',
+        'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "coinsBalance" INTEGER DEFAULT 0;',
+        'ALTER TABLE agencies ADD COLUMN coinsBalance INT DEFAULT 0;',
+        'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "referredByAgencyId" INTEGER;',
+        'ALTER TABLE agencies ADD COLUMN referredByAgencyId INT;',
+        'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "referralCount" INTEGER DEFAULT 0;',
+        'ALTER TABLE agencies ADD COLUMN referralCount INT DEFAULT 0;',
+        'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "pincode" VARCHAR(16);',
+        'ALTER TABLE agencies ADD COLUMN pincode VARCHAR(16);',
+        'ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayKeyId" VARCHAR(255) DEFAULT \'rzp_live_89123849102934\';',
+        'ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayKeySecret" VARCHAR(255) DEFAULT \'rzp_sec_99182391028349\';',
+        'ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "razorpayWebhookSecret" VARCHAR(255) DEFAULT \'whsec_rzp_live_109283\';',
+        'ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "stripePublishableKey" VARCHAR(255) DEFAULT \'pk_live_51M091823981023984\';',
+        'ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "stripeSecretKey" VARCHAR(255) DEFAULT \'sk_live_51M091823981023984_sec_99182\';',
+        'ALTER TABLE platform_configs ADD COLUMN IF NOT EXISTS "stripeWebhookSecret" VARCHAR(255) DEFAULT \'whsec_stripe_live_991823\';',
+      ];
+
+      for (const q of safeQueries) {
+        try {
+          await sequelize.query(q);
+        } catch (_) {}
+      }
+
       await seedInitialData();
       isDbInitialized = true;
     } catch (err) {

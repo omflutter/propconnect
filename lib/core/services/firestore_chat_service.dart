@@ -40,6 +40,12 @@ class FirestoreChatService {
               'updatedAt': updatedAt,
               'isUnread': unreadCount > 0,
               'unreadCount': unreadCount,
+              'chatType': data['chatType'],
+              'propertyId': data['propertyId'],
+              'propertyTitle': data['propertyTitle'],
+              'dealId': data['dealId'],
+              'dealCode': data['dealCode'],
+              'contextTitle': data['contextTitle'],
             };
           }).toList();
 
@@ -115,6 +121,12 @@ class FirestoreChatService {
     required String messageText,
     String attachmentType = 'text',
     Map<String, dynamic>? attachmentData,
+    String? chatType,
+    String? propertyId,
+    String? propertyTitle,
+    String? dealId,
+    String? dealCode,
+    String? contextTitle,
   }) async {
     try {
       final convDoc = _conversationsRef.doc(conversationId);
@@ -135,7 +147,7 @@ class FirestoreChatService {
       });
 
       // 2. Set/Update conversation document in Firestore
-      await convDoc.set({
+      final Map<String, dynamic> convData = {
         'conversationId': conversationId,
         'participants': [senderId, receiverId],
         'participantNames': {
@@ -153,14 +165,23 @@ class FirestoreChatService {
           senderId: 0,
           receiverId: FieldValue.increment(1),
         },
-      }, SetOptions(merge: true));
+      };
+
+      if (chatType != null) convData['chatType'] = chatType;
+      if (propertyId != null) convData['propertyId'] = propertyId;
+      if (propertyTitle != null) convData['propertyTitle'] = propertyTitle;
+      if (dealId != null) convData['dealId'] = dealId;
+      if (dealCode != null) convData['dealCode'] = dealCode;
+      if (contextTitle != null) convData['contextTitle'] = contextTitle;
+
+      await convDoc.set(convData, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Firestore sendMessage error: $e');
     }
 
     // 3. Dual-sync to Cloud PostgreSQL backend in background
     try {
-      await ApiService.post('/chat/send', {
+      final syncPayload = <String, dynamic>{
         'conversationId': conversationId,
         'senderId': senderId,
         'senderName': senderName,
@@ -169,7 +190,12 @@ class FirestoreChatService {
         'messageText': messageText,
         'attachmentType': attachmentType,
         'attachmentData': attachmentData,
-      });
+      };
+      if (chatType != null) syncPayload['chatType'] = chatType;
+      if (propertyId != null) syncPayload['propertyId'] = propertyId;
+      if (dealId != null) syncPayload['dealId'] = dealId;
+
+      await ApiService.post('/chat/send', syncPayload);
     } catch (e) {
       debugPrint('PostgreSQL sync error: $e');
     }

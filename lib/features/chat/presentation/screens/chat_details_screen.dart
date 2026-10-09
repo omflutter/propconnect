@@ -7,16 +7,25 @@ import 'package:image_picker/image_picker.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/models/property_model.dart';
+import 'package:propconnect/core/models/deal_model.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/services/firestore_chat_service.dart';
 import 'package:propconnect/core/services/user_presence_service.dart';
 import 'package:propconnect/core/network/api_service.dart';
+import 'package:propconnect/core/services/broker_directory_service.dart';
 
 class ChatDetailsScreen extends ConsumerStatefulWidget {
   final String chatId;
   final String? partnerName;
   final String? partnerId;
   final String? agencyName;
+  final PropertyModel? property;
+
+  /// Chat context metadata (PRD Sec 11 — Direct / Property / Deal chat)
+  final String chatType; // 'direct' | 'property' | 'deal'
+  final String? contextTitle; // Property title or deal code
+  final String? propertyId;
+  final String? dealId;
 
   const ChatDetailsScreen({
     super.key,
@@ -24,11 +33,17 @@ class ChatDetailsScreen extends ConsumerStatefulWidget {
     this.partnerName,
     this.partnerId,
     this.agencyName,
+    this.property,
+    this.chatType = 'direct',
+    this.contextTitle,
+    this.propertyId,
+    this.dealId,
   });
 
   @override
   ConsumerState<ChatDetailsScreen> createState() => _ChatDetailsScreenState();
 }
+
 
 class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
   final TextEditingController _messageController = TextEditingController();
@@ -36,12 +51,38 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
   bool _isLoadingHistory = true;
   List<Map<String, dynamic>> _messages = [];
 
+  String get _resolvedPartnerId {
+    if (widget.partnerId != null && widget.partnerId!.isNotEmpty) {
+      return widget.partnerId!;
+    }
+    if (widget.property != null) {
+      final pId = BrokerDirectoryService.resolvePartnerForProperty(widget.property!);
+      if (pId.isNotEmpty) return pId;
+    }
+    final userData = AuthStorageService.getUserData();
+    final currentUserId = userData?['id']?.toString() ?? '';
+    final parts = widget.chatId.split('_');
+    if (parts.length >= 3 && parts[0] == 'conv') {
+      final id1 = parts[1];
+      final id2 = parts[2];
+      final target = (id1 == currentUserId) ? id2 : id1;
+      if (target.isNotEmpty) return target;
+    }
+    return '';
+  }
+
   @override
   void initState() {
     super.initState();
+    BrokerDirectoryService.fetchDirectory();
     final userData = AuthStorageService.getUserData();
-    final currentUserId = userData?['id']?.toString() ?? '1';
-    FirestoreChatService.markConversationAsRead(widget.chatId, currentUserId);
+    final currentUserId = userData?['id']?.toString() ?? '';
+    if (currentUserId.isNotEmpty) {
+      FirestoreChatService.markConversationAsRead(widget.chatId, currentUserId);
+      ApiService.put('/chat/read/${widget.chatId}', {'userId': currentUserId}).then((_) {
+        ref.read(unreadMessagesProvider.notifier).fetchUnreadCount();
+      }).catchError((_) {});
+    }
     _fetchPostgresHistory();
   }
 
@@ -49,6 +90,13 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    final userData = AuthStorageService.getUserData();
+    final currentUserId = userData?['id']?.toString() ?? '';
+    if (currentUserId.isNotEmpty) {
+      ApiService.put('/chat/read/${widget.chatId}', {'userId': currentUserId}).then((_) {
+        ref.read(unreadMessagesProvider.notifier).fetchUnreadCount();
+      }).catchError((_) {});
+    }
     super.dispose();
   }
 
@@ -57,7 +105,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
       final res = await ApiService.get('/chat/messages/${widget.chatId}');
       if (res['success'] == true && res['data'] != null) {
         final userData = AuthStorageService.getUserData();
-        final currentUserId = userData?['id']?.toString() ?? '1';
+        final currentUserId = userData?['id']?.toString() ?? '';
 
         final list = (res['data'] as List).map((e) {
           final m = Map<String, dynamic>.from(e as Map);
@@ -129,11 +177,12 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
     final timeStr = '$hour:$minute $ampm';
 
     final userData = AuthStorageService.getUserData();
-    final currentUserId = userData?['id']?.toString() ?? '1';
-    final currentUserName = (userData?['name'] as String?) ?? 'Broker';
+    final currentUserId = userData?['id']?.toString() ?? '';
+    final currentUserName = (userData?['name'] as String?) ?? 'Agent';
     final currentUserAgency = (userData?['agency']?['name'] as String?) ?? (userData?['agencyName'] as String?) ?? 'My Agency';
 
-    final partnerId = widget.partnerId ?? '2';
+    final resolvedPartner = _resolvedPartnerId;
+    final partnerId = resolvedPartner.isNotEmpty ? resolvedPartner : (widget.partnerId ?? '1');
     final partnerName = widget.partnerName ?? 'Partner Broker';
     final partnerAgency = widget.agencyName ?? 'Partner Agency';
 
@@ -164,6 +213,12 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
       messageText: text.isNotEmpty ? text : (type == 'property' ? 'Shared Property Card' : 'Shared Attachment'),
       attachmentType: type,
       attachmentData: attachmentData,
+      chatType: widget.chatType,
+      contextTitle: widget.contextTitle,
+      propertyId: widget.propertyId ?? widget.property?.id,
+      propertyTitle: widget.property?.title ?? (widget.chatType == 'property' ? widget.contextTitle : null),
+      dealId: widget.dealId,
+      dealCode: widget.chatType == 'deal' ? widget.contextTitle : null,
     );
 
     ref.read(unreadMessagesProvider.notifier).fetchUnreadCount();
@@ -723,13 +778,131 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
     );
   }
 
+  Widget _buildDealContextBanner(BuildContext context) {
+    final deals = ref.watch(dealProvider);
+    final deal = deals.cast<DealModel?>().firstWhere(
+      (d) => d != null && (d.id == widget.dealId || d.dealCode == widget.dealId),
+      orElse: () => null,
+    );
+
+    final title = deal?.propertyName ?? widget.contextTitle ?? 'Active Deal Collaboration';
+    final dealCode = (deal?.dealCode.isNotEmpty == true) ? deal!.dealCode : (widget.dealId ?? 'Deal');
+    final stage = deal?.status ?? 'In Progress';
+    final targetId = deal?.id ?? widget.dealId ?? '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primaryBlue.withValues(alpha: 0.05),
+        border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primaryBlue.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.handshake_outlined, color: AppColors.primaryBlue, size: 22),
+          ),
+          const Gap(12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlue,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        dealCode,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                    const Gap(6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        border: Border.all(color: Colors.green.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        stage,
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                      ),
+                    ),
+                  ],
+                ),
+                const Gap(3),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+              ],
+            ),
+          ),
+          const Gap(8),
+          if (targetId.isNotEmpty)
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                minimumSize: Size.zero,
+                side: const BorderSide(color: AppColors.primaryBlue),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              ),
+              onPressed: () => context.push('/deal-details/$targetId'),
+              child: const Text('View Deal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryBlue)),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userData = AuthStorageService.getUserData();
-    final currentUserId = userData?['id']?.toString() ?? '1';
+    final currentUserId = userData?['id']?.toString() ?? '';
 
-    final displayName = widget.partnerName ?? 'Broker';
-    final partnerAgency = widget.agencyName ?? 'Partner Broker';
+    String displayName = widget.partnerName ?? '';
+    String partnerAgency = widget.agencyName ?? '';
+
+    // If partner name is missing or generic, resolve from directory or loaded message history
+    if (displayName.isEmpty || displayName == 'Broker' || displayName == 'Partner Broker' || displayName == 'Broker Agent' || displayName == 'Listing Broker') {
+      final partnerId = _resolvedPartnerId;
+      if (partnerId.isNotEmpty) {
+        final cachedUser = BrokerDirectoryService.getUserById(partnerId);
+        if (cachedUser != null) {
+          displayName = cachedUser.name;
+          if (partnerAgency.isEmpty || partnerAgency == 'Partner Broker' || partnerAgency == 'Partner Agency' || partnerAgency == 'Listing Agency') {
+            partnerAgency = cachedUser.agencyName;
+          }
+        }
+      }
+      if ((displayName.isEmpty || displayName == 'Broker' || displayName == 'Partner Broker' || displayName == 'Broker Agent' || displayName == 'Listing Broker') && _messages.isNotEmpty) {
+        for (final msg in _messages) {
+          final senderId = msg['senderId']?.toString();
+          final sName = msg['senderName']?.toString();
+          final rName = msg['receiverName']?.toString();
+          if (senderId != currentUserId && sName != null && sName.isNotEmpty && sName != 'Broker' && sName != 'Broker Partner') {
+            displayName = sName;
+            break;
+          } else if (senderId == currentUserId && rName != null && rName.isNotEmpty && rName != 'Broker' && rName != 'Broker Partner') {
+            displayName = rName;
+            break;
+          }
+        }
+      }
+    }
+    if (displayName.isEmpty) displayName = 'Broker Partner';
+    if (partnerAgency.isEmpty) partnerAgency = 'Partner Agency';
     final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'B';
 
     return Scaffold(
@@ -739,20 +912,35 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
         backgroundColor: Colors.white,
         titleSpacing: 0,
         title: StreamBuilder<Map<String, dynamic>>(
-          stream: UserPresenceService.streamPresence(widget.partnerId),
+          stream: UserPresenceService.streamPresence(_resolvedPartnerId),
           builder: (context, presenceSnap) {
             final presence = presenceSnap.data ?? {'isOnline': false, 'statusText': 'Offline'};
             final isOnline = presence['isOnline'] as bool? ?? false;
             final statusText = presence['statusText'] as String? ?? 'Offline';
+
+            // Determine chat type badge
+            final bool isPropertyChat = widget.chatType == 'property' || widget.chatType == 'deal' || (widget.propertyId != null && widget.propertyId!.isNotEmpty);
+            final Color badgeColor = isPropertyChat ? Colors.teal : Colors.grey.shade600;
+            final IconData badgeIcon = isPropertyChat ? Icons.home_outlined : Icons.chat_bubble_outline;
+            final String badgeLabel = isPropertyChat ? 'Property Chat' : 'Direct Chat';
+
+            // Context subtitle line
+            final String contextLine = (widget.contextTitle != null && widget.contextTitle!.isNotEmpty)
+                ? widget.contextTitle!
+                : (isPropertyChat ? 'Property Discussion'
+                    : '$statusText • $partnerAgency');
 
             return Row(
               children: [
                 Stack(
                   children: [
                     CircleAvatar(
-                      backgroundColor: AppColors.primaryBlue,
+                      backgroundColor: badgeColor.withValues(alpha: 0.15),
                       radius: 18,
-                      child: Text(initial, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      child: Text(
+                        initial,
+                        style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
                     ),
                     if (isOnline)
                       Positioned(
@@ -770,27 +958,62 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                       ),
                   ],
                 ),
-                const Gap(12),
+                const Gap(10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                      ),
+                      // Partner name + chat type badge inline
                       Row(
                         children: [
-                          Icon(Icons.circle, color: isOnline ? Colors.green : Colors.grey.shade400, size: 8),
-                          const Gap(4),
-                          Expanded(
+                          Flexible(
                             child: Text(
-                              '$statusText • $partnerAgency',
+                              displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                            ),
+                          ),
+                          const Gap(6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: badgeColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(badgeIcon, size: 9, color: badgeColor),
+                                const Gap(3),
+                                Text(
+                                  badgeLabel,
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: badgeColor),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Gap(1),
+                      // Context subtitle
+                      Row(
+                        children: [
+                          if (!isPropertyChat) ...[
+                            Icon(Icons.circle, color: isOnline ? Colors.green : Colors.grey.shade400, size: 7),
+                            const Gap(3),
+                          ],
+                          Expanded(
+                            child: Text(
+                              contextLine,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isPropertyChat ? badgeColor : AppColors.textSecondary,
+                                fontWeight: isPropertyChat ? FontWeight.w600 : FontWeight.normal,
+                              ),
                             ),
                           ),
                         ],
@@ -802,6 +1025,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
             );
           },
         ),
+
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: AppColors.primaryBlue),
@@ -825,6 +1049,82 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
       ),
       body: Column(
         children: [
+          if (widget.property != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
+                border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 50,
+                      height: 50,
+                      child: _buildCardImage(
+                        widget.property!.images.isNotEmpty
+                            ? widget.property!.images.first
+                            : 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=600',
+                      ),
+                    ),
+                  ),
+                  const Gap(12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'Property Inquiry',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
+                              ),
+                            ),
+                            const Gap(6),
+                            Expanded(
+                              child: Text(
+                                widget.property!.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Gap(2),
+                        Text(
+                          '${widget.property!.bhk} • ₹${widget.property!.price} • ${widget.property!.location}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Gap(8),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      side: const BorderSide(color: AppColors.primaryBlue),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    onPressed: () => context.push('/property-details/${widget.property!.id}'),
+                    child: const Text('View', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryBlue)),
+                  ),
+                ],
+              ),
+            ),
+          if (widget.chatType == 'deal' || (widget.dealId != null && widget.dealId!.isNotEmpty))
+            _buildDealContextBanner(context),
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: FirestoreChatService.streamMessages(widget.chatId, currentUserId),

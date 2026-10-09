@@ -6,6 +6,14 @@ import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 
 const getUserIdFromAuth = (req: Request): number => {
+  if (req.query.userId) {
+    const qId = parseInt(String(req.query.userId), 10);
+    if (!isNaN(qId) && qId > 0) return qId;
+  }
+  if (req.body?.userId) {
+    const bId = parseInt(String(req.body.userId), 10);
+    if (!isNaN(bId) && bId > 0) return bId;
+  }
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
@@ -13,7 +21,22 @@ const getUserIdFromAuth = (req: Request): number => {
       if (decoded.id) return parseInt(String(decoded.id), 10);
     } catch (_) {}
   }
-  return 1; // Default to Om Shivam (demo session)
+  return 1;
+};
+
+const getAgencyIdFromAuth = (req: Request): number | undefined => {
+  if (req.query.agencyId) {
+    const aId = parseInt(String(req.query.agencyId), 10);
+    if (!isNaN(aId) && aId > 0) return aId;
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], env.JWT_SECRET) as any;
+      if (decoded.agencyId) return parseInt(String(decoded.agencyId), 10);
+    } catch (_) {}
+  }
+  return undefined;
 };
 
 /**
@@ -22,16 +45,24 @@ const getUserIdFromAuth = (req: Request): number => {
 export const getNotifications = async (req: Request, res: Response) => {
   try {
     const userId = getUserIdFromAuth(req);
-    const { filter, limit, offset } = req.query;
+    const agencyId = getAgencyIdFromAuth(req);
+    const { filter, status, type, limit, offset } = req.query;
+
+    const resolvedFilter = filter || status || type;
 
     const result = await NotificationService.getUserNotifications({
       userId,
-      filter: filter ? String(filter) : undefined,
+      agencyId,
+      filter: resolvedFilter ? String(resolvedFilter) : undefined,
       limit: limit ? parseInt(String(limit), 10) : 50,
       offset: offset ? parseInt(String(offset), 10) : 0,
     });
 
-    return successResponse(res, 'Notifications retrieved', result);
+    return successResponse(res, 'Notifications retrieved', {
+      notifications: result.notifications,
+      total: result.total,
+      unreadCount: result.unreadCount,
+    });
   } catch (error: any) {
     return errorResponse(res, 'Failed to retrieve notifications', error.message || error);
   }

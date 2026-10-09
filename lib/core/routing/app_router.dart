@@ -26,14 +26,19 @@ import 'package:propconnect/features/collaborations/presentation/screens/collabo
 import 'package:propconnect/features/deals/presentation/screens/deal_details_screen.dart';
 import 'package:propconnect/features/deals/presentation/screens/add_deal_screen.dart';
 import 'package:propconnect/features/settings/presentation/screens/settings_screen.dart';
+import 'package:propconnect/features/settings/presentation/screens/active_sessions_screen.dart';
 import 'package:propconnect/features/support/presentation/screens/help_support_screen.dart';
 import 'package:propconnect/features/chat/presentation/screens/chat_details_screen.dart';
+import 'package:propconnect/core/models/property_model.dart';
 import 'package:propconnect/features/subscription/presentation/screens/subscription_screen.dart';
+import 'package:propconnect/features/referral/presentation/screens/referral_screen.dart';
 import 'package:propconnect/features/profile/presentation/screens/my_profile_screen.dart';
 import 'package:propconnect/features/properties/presentation/screens/add_edit_property_screen.dart';
 import 'package:propconnect/features/owners/presentation/screens/owners_screen.dart';
 import 'package:propconnect/features/owners/presentation/screens/owner_details_screen.dart';
 import 'package:propconnect/core/models/owner_model.dart';
+import 'package:propconnect/core/providers/user_role_provider.dart';
+import 'package:propconnect/core/services/auth_storage_service.dart';
 
 // Keys for StatefulShellRoute branches
 final _shellNavigatorHomeKey = GlobalKey<NavigatorState>(debugLabel: 'shellHome');
@@ -64,11 +69,13 @@ class AppRouter {
   static const String chat = '/chat';
   static const String notifications = '/notifications';
   static const String commissions = '/commissions';
+  static const String settlements = '/settlements';
   static const String leads = '/leads';
   static const String analytics = '/analytics';
   static const String agencyManagement = '/agency-management';
   static const String createAgency = '/create-agency';
   static const String subscription = '/subscription';
+  static const String referral = '/referral';
   static const String profile = '/profile';
   static const String owners = '/owners';
   static const String ownerDetails = '/owner-details/:id';
@@ -81,6 +88,7 @@ class AppRouter {
   static const String chatDetails = '/chat/:id';
   static const String addEditProperty = '/add-edit-property/:id';
   static const String settings = '/settings';
+  static const String activeSessions = '/settings/sessions';
   static const String support = '/support';
 
   static final router = GoRouter(
@@ -117,7 +125,11 @@ class AppRouter {
       ),
       GoRoute(
         path: commissions,
-        builder: (context, state) => const CommissionsScreen(),
+        builder: (context, state) => const CommissionsScreen(initialTabIndex: 0),
+      ),
+      GoRoute(
+        path: settlements,
+        builder: (context, state) => const CommissionsScreen(initialTabIndex: 1),
       ),
       GoRoute(
         path: leads,
@@ -125,19 +137,59 @@ class AppRouter {
       ),
       GoRoute(
         path: analytics,
+        redirect: (context, state) {
+          final role = AuthStorageService.getUserRole();
+          final userData = AuthStorageService.getUserData();
+          final isSuperAdmin = (userData?['role'] as String?)?.toLowerCase() == 'super_admin';
+          if (role == UserRole.broker && !isSuperAdmin) {
+            return home;
+          }
+          return null;
+        },
         builder: (context, state) => const AnalyticsScreen(),
       ),
       GoRoute(
         path: agencyManagement,
+        redirect: (context, state) {
+          final role = AuthStorageService.getUserRole();
+          final userData = AuthStorageService.getUserData();
+          final isSuperAdmin = (userData?['role'] as String?)?.toLowerCase() == 'super_admin';
+          if (role == UserRole.broker && !isSuperAdmin) {
+            return home;
+          }
+          return null;
+        },
         builder: (context, state) => const AgencyManagementScreen(),
       ),
       GoRoute(
         path: createAgency,
+        redirect: (context, state) {
+          final role = AuthStorageService.getUserRole();
+          final userData = AuthStorageService.getUserData();
+          final isSuperAdmin = (userData?['role'] as String?)?.toLowerCase() == 'super_admin';
+          if (role == UserRole.broker && !isSuperAdmin) {
+            return home;
+          }
+          return null;
+        },
         builder: (context, state) => const CreateAgencyScreen(),
       ),
       GoRoute(
         path: subscription,
+        redirect: (context, state) {
+          final role = AuthStorageService.getUserRole();
+          final userData = AuthStorageService.getUserData();
+          final isSuperAdmin = (userData?['role'] as String?)?.toLowerCase() == 'super_admin';
+          if (role == UserRole.broker && !isSuperAdmin) {
+            return home;
+          }
+          return null;
+        },
         builder: (context, state) => const SubscriptionScreen(),
+      ),
+      GoRoute(
+        path: referral,
+        builder: (context, state) => const ReferralScreen(),
       ),
       GoRoute(
         path: profile,
@@ -145,6 +197,15 @@ class AppRouter {
       ),
       GoRoute(
         path: owners,
+        redirect: (context, state) {
+          final role = AuthStorageService.getUserRole();
+          final userData = AuthStorageService.getUserData();
+          final isSuperAdmin = (userData?['role'] as String?)?.toLowerCase() == 'super_admin';
+          if (role == UserRole.broker && !isSuperAdmin) {
+            return home;
+          }
+          return null;
+        },
         builder: (context, state) => const OwnersScreen(),
       ),
       GoRoute(
@@ -181,9 +242,15 @@ class AppRouter {
             partnerName: extra?['partnerName'] as String? ?? state.uri.queryParameters['partnerName'],
             partnerId: extra?['partnerId'] as String? ?? state.uri.queryParameters['partnerId'],
             agencyName: extra?['agencyName'] as String? ?? state.uri.queryParameters['agencyName'],
+            property: extra?['property'] as PropertyModel?,
+            chatType: extra?['chatType'] as String? ?? 'direct',
+            contextTitle: extra?['contextTitle'] as String? ?? state.uri.queryParameters['contextTitle'],
+            propertyId: extra?['propertyId'] as String? ?? state.uri.queryParameters['propertyId'],
+            dealId: extra?['dealId'] as String? ?? state.uri.queryParameters['dealId'],
           );
         },
       ),
+
       GoRoute(
         path: addEditProperty,
         builder: (context, state) {
@@ -211,12 +278,23 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: '/deals/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return DealDetailsScreen(dealId: id);
+        },
+      ),
+      GoRoute(
         path: addDeal,
         builder: (context, state) => const AddDealScreen(),
       ),
       GoRoute(
         path: settings,
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: activeSessions,
+        builder: (context, state) => const ActiveSessionsScreen(),
       ),
       GoRoute(
         path: support,
@@ -259,7 +337,10 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: deals,
-                pageBuilder: (context, state) => const NoTransitionPage(child: DealsScreen()),
+                pageBuilder: (context, state) {
+                  final stage = state.uri.queryParameters['stage'] ?? (state.extra is String ? state.extra as String : null);
+                  return NoTransitionPage(child: DealsScreen(initialStage: stage));
+                },
               ),
             ],
           ),

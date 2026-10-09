@@ -10,6 +10,7 @@ import 'package:propconnect/core/routing/app_router.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/widgets/live_location_select.dart';
 import 'package:propconnect/core/widgets/agency_celebration_dialog.dart';
+import 'package:propconnect/core/providers/data_providers.dart';
 
 class CreateAgencyScreen extends ConsumerStatefulWidget {
   const CreateAgencyScreen({super.key});
@@ -33,6 +34,8 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
 
   String _selectedTier = 'Pro (₹5,999/mo)';
   late TextEditingController _userQuotaCtrl;
+  late TextEditingController _pincodeCtrl;
+  late TextEditingController _referralCodeCtrl;
   bool _isSubmitting = false;
   bool _obscurePassword = true;
 
@@ -52,6 +55,7 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
     final existingRera = (userAgency?['reraNumber'] as String?) ?? '';
     final existingLoc = (userAgency?['location'] as String?) ?? 'Mumbai (MMR), Maharashtra';
     final existingAddr = (userAgency?['address'] as String?) ?? '';
+    final existingPin = (userAgency?['pincode'] as String?) ?? '';
     final userName = (userData?['name'] as String?) ?? '';
     final userEmail = (userData?['email'] as String?) ?? '';
     final userPhone = (userData?['phone'] as String?) ?? '';
@@ -60,6 +64,8 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
     _reraNumberCtrl = TextEditingController(text: existingRera);
     _operatingLocation = existingLoc.isNotEmpty ? existingLoc : 'Mumbai (MMR), Maharashtra';
     _corporateAddress = existingAddr;
+    _pincodeCtrl = TextEditingController(text: existingPin);
+    _referralCodeCtrl = TextEditingController();
     _adminNameCtrl = TextEditingController(text: userName);
     _adminEmailCtrl = TextEditingController(text: userEmail);
     _adminPhoneCtrl = TextEditingController(text: userPhone);
@@ -70,6 +76,8 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
   void dispose() {
     _agencyNameCtrl.dispose();
     _reraNumberCtrl.dispose();
+    _pincodeCtrl.dispose();
+    _referralCodeCtrl.dispose();
     _adminNameCtrl.dispose();
     _adminEmailCtrl.dispose();
     _adminPhoneCtrl.dispose();
@@ -104,6 +112,8 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
         'reraNumber': _reraNumberCtrl.text.trim(),
         'location': _operatingLocation.trim(),
         'address': _corporateAddress.trim(),
+        'pincode': _pincodeCtrl.text.trim(),
+        'referralCode': _referralCodeCtrl.text.trim().toUpperCase(),
         'adminName': _adminNameCtrl.text.trim(),
         'adminEmail': _adminEmailCtrl.text.trim(),
         'adminPhone': _adminPhoneCtrl.text.trim(),
@@ -111,6 +121,10 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
         'subscriptionTier': _selectedTier,
         'userQuota': quota,
       };
+
+      // Ensure no stale token or previous session is sent
+      ApiService.setAuthToken('');
+      await AuthStorageService.clearSession();
 
       final res = await ApiService.post('/agencies/create-profile', payload);
 
@@ -129,6 +143,9 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
         );
 
         if (!mounted) return;
+
+        // Reset and reload property provider for the new agency
+        ref.read(propertyProvider.notifier).clearAndRefresh();
 
         // Update Riverpod state
         ref.read(userRoleProvider.notifier).setRole(UserRole.agencyAdmin);
@@ -321,6 +338,24 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
                               _corporateAddress = val;
                             });
                           },
+                          onLocationDetailsSelected: (details) {
+                            if (details.pincode.isNotEmpty) {
+                              setState(() {
+                                _pincodeCtrl.text = details.pincode;
+                              });
+                            }
+                          },
+                        ),
+                        const Gap(14),
+
+                        // Postal PIN Code
+                        _buildInputField(
+                          controller: _pincodeCtrl,
+                          label: 'Postal PIN Code',
+                          hint: '6-digit PIN (e.g. 400051)',
+                          icon: Icons.pin_drop_outlined,
+                          keyboardType: TextInputType.number,
+                          isRequired: false,
                         ),
                       ],
                     ),
@@ -474,6 +509,24 @@ class _CreateAgencyScreenState extends ConsumerState<CreateAgencyScreen> {
                             }
                             return null;
                           },
+                        ),
+                        const Gap(14),
+
+                        // Referral Code (Optional)
+                        _buildInputField(
+                          controller: _referralCodeCtrl,
+                          label: 'Referral Code (Optional)',
+                          hint: 'e.g. AG-002 or PROP-AG002',
+                          icon: Icons.card_giftcard_rounded,
+                          isRequired: false,
+                        ),
+                        const Gap(4),
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Text(
+                            '🪙 Joining via referral unlocks 500 PropCoins welcome bonus!',
+                            style: TextStyle(fontSize: 11.5, color: Color(0xFFD97706), fontWeight: FontWeight.w600),
+                          ),
                         ),
                       ],
                     ),

@@ -8,6 +8,8 @@ import '../network/api_service.dart';
 import '../services/firestore_chat_service.dart';
 import '../services/auth_storage_service.dart';
 import '../services/push_notification_service.dart';
+import '../services/broker_directory_service.dart';
+import 'user_role_provider.dart';
 
 class PropertiesLoadingNotifier extends Notifier<bool> {
   @override
@@ -36,9 +38,20 @@ final propertiesErrorProvider = NotifierProvider<PropertiesErrorNotifier, String
 });
 
 class PropertyNotifier extends Notifier<List<PropertyModel>> {
+  StreamSubscription? _fcmSub;
+
   @override
   List<PropertyModel> build() {
     final cached = AuthStorageService.getCachedProperties();
+    _fcmSub = PushNotificationService.onMessageReceivedStream.stream.listen((message) {
+      final type = message.data['type'] as String?;
+      if (type == null || type == 'property' || type == 'deal') {
+        fetchProperties();
+      }
+    });
+    ref.onDispose(() {
+      _fcmSub?.cancel();
+    });
     Future.microtask(() {
       fetchProperties();
     });
@@ -156,6 +169,17 @@ class PropertyNotifier extends Notifier<List<PropertyModel>> {
     state = updatedList;
     AuthStorageService.saveCachedProperties(state);
   }
+
+  /// Reset in-memory & local cache and refetch cleanly (used on switch/login/register)
+  Future<void> clearAndRefresh() async {
+    state = [];
+    await AuthStorageService.clearCachedProperties();
+    await fetchProperties();
+  }
+
+  void reset() {
+    state = [];
+  }
 }
 
 final propertyProvider = NotifierProvider<PropertyNotifier, List<PropertyModel>>(() {
@@ -163,16 +187,43 @@ final propertyProvider = NotifierProvider<PropertyNotifier, List<PropertyModel>>
 });
 
 class DealNotifier extends Notifier<List<DealModel>> {
+  StreamSubscription? _fcmSub;
+
   @override
   List<DealModel> build() {
+    final cached = AuthStorageService.getCachedDeals();
+    _fcmSub = PushNotificationService.onMessageReceivedStream.stream.listen((message) {
+      final type = message.data['type'] as String?;
+      if (type == null || type == 'deal' || type == 'collaboration') {
+        fetchDeals();
+      }
+    });
+    ref.onDispose(() {
+      _fcmSub?.cancel();
+    });
     Future.microtask(() {
       fetchDeals();
     });
-    return [];
+    return cached;
+  }
+
+  void reset() {
+    state = [];
+  }
+
+  Future<void> clearAndRefresh() async {
+    state = [];
+    try {
+      await AuthStorageService.saveCachedDeals([]);
+    } catch (_) {}
+    await fetchDeals();
   }
 
   Future<void> fetchDeals() async {
     try {
+      // Pre-fetch directory for user resolution
+      BrokerDirectoryService.fetchDirectory();
+
       final dealsRes = await ApiService.get('/deals');
       final collabsRes = await ApiService.get('/collaborations');
       
@@ -187,32 +238,75 @@ class DealNotifier extends Notifier<List<DealModel>> {
       if (collabsRes['success'] == true && collabsRes['data'] is List) {
         final userData = AuthStorageService.getUserData();
         final currentAgencyId = userData?['agencyId'] ?? (userData?['agency'] is Map ? userData!['agency']['id'] : null);
+        final currentAgencyStr = currentAgencyId?.toString();
+        final currentUserIdStr = userData?['id']?.toString();
         
         for (final item in (collabsRes['data'] as List)) {
           final map = Map<String, dynamic>.from(item);
-          final isIncoming = currentAgencyId != null && map['targetAgencyId'].toString() == currentAgencyId.toString();
+          final targetAgencyStr = map['targetAgencyId']?.toString();
+          final targetBrokerStr = map['targetBrokerId']?.toString();
+
+          final isIncoming = (currentAgencyStr != null && targetAgencyStr == currentAgencyStr) ||
+              (currentUserIdStr != null && targetBrokerStr == currentUserIdStr);
           
           fetched.add(DealModel.fromJson({
             ...map,
-            'isRequest': map['status'] == 'Pending',
+            'id': (map['requestCode'] ?? map['id'] ?? '').toString(),
+            'dealCode': (map['requestCode'] ?? map['dealCode'] ?? '').toString(),
+            'isRequest': true,
             'isIncomingRequest': isIncoming,
-            'propertyName': map['propertyTitle'] ?? 'Property Inquiry',
-            'amount': map['expectedBudget'] ?? '₹0',
-            'partnerBroker': isIncoming ? map['requestingBrokerName'] : map['targetBrokerName'],
-            'partnerAgency': isIncoming ? map['requestingAgencyName'] : map['targetAgencyName'],
+            'agencyAId': map['targetAgencyId'],
+            'agencyAName': map['targetAgencyName'] ?? '',
+            'brokerAId': map['targetBrokerId'],
+            'brokerAName': map['targetBrokerName'] ?? '',
+            'agencyBId': map['requestingAgencyId'],
+            'agencyBName': map['requestingAgencyName'] ?? '',
+            'brokerBId': map['requestingBrokerId'],
+            'brokerBName': map['requestingBrokerName'] ?? '',
+            'propertyName': map['propertyName'] ?? map['propertyTitle'] ?? 'Property Listing',
+            'amount': map['expectedBudget'] ?? map['propertyPrice'] ?? '₹0',
+            'expectedBudget': map['expectedBudget'] ?? map['propertyPrice'] ?? '',
+            'partnerBroker': isIncoming ? (map['requestingBrokerName'] ?? 'Broker') : (map['targetBrokerName'] ?? 'Broker'),
+            'partnerAgency': isIncoming ? (map['requestingAgencyName'] ?? 'Partner Agency') : (map['targetAgencyName'] ?? 'Agency'),
           }));
         }
       }
 
       state = fetched;
+      try {
+        await AuthStorageService.saveCachedDeals(fetched);
+      } catch (_) {}
     } catch (_) {}
   }
 
   Future<void> addDeal(DealModel deal) async {
     state = [deal, ...state];
     try {
+      await AuthStorageService.saveCachedDeals(state);
+    } catch (_) {}
+    try {
       if (deal.isRequest) {
-        await ApiService.post('/collaborations', deal.toJson());
+        final userData = AuthStorageService.getUserData();
+        final myAgencyId = deal.agencyBId ?? userData?['agencyId'] ?? (userData?['agency'] is Map ? userData!['agency']['id'] : null);
+        final myAgencyName = deal.agencyBName.isNotEmpty ? deal.agencyBName : ((userData?['agency']?['name'] as String?) ?? (userData?['agencyName'] as String?) ?? '');
+        final myUserId = deal.brokerBId ?? userData?['id'];
+        final myUserName = deal.brokerBName.isNotEmpty ? deal.brokerBName : ((userData?['name'] as String?) ?? 'Broker');
+
+        await ApiService.post('/collaborations', {
+          'propertyId': int.tryParse(deal.propertyId) ?? 1,
+          'propertyName': deal.propertyName,
+          'targetAgencyId': deal.agencyAId,
+          'targetAgencyName': deal.agencyAName,
+          'targetBrokerId': deal.brokerAId,
+          'targetBrokerName': deal.brokerAName,
+          'requestingAgencyId': myAgencyId,
+          'requestingAgencyName': myAgencyName,
+          'requestingBrokerId': myUserId,
+          'requestingBrokerName': myUserName,
+          'clientRequirement': deal.clientRequirement ?? '',
+          'expectedBudget': deal.expectedBudget ?? deal.amount,
+          'remarks': deal.remarks ?? '',
+        });
       } else {
         await ApiService.post('/deals', deal.toJson());
       }
@@ -220,7 +314,12 @@ class DealNotifier extends Notifier<List<DealModel>> {
     } catch (_) {}
   }
   
-  Future<void> updateDealStatus(String id, String newStatus, [String? notes]) async {
+  Future<void> updateDealStatus(
+    String id, 
+    String newStatus, [
+    String? notes, 
+    Map<String, dynamic>? milestoneData,
+  ]) async {
     state = [
       for (final deal in state)
         if (deal.id == id || deal.dealCode == id)
@@ -243,7 +342,7 @@ class DealNotifier extends Notifier<List<DealModel>> {
             amount: deal.amount,
             dealValue: deal.dealValue,
             commissionId: deal.commissionId,
-            isRequest: (newStatus == 'Approved' || newStatus == 'Rejected') ? false : deal.isRequest,
+            isRequest: deal.isRequest,
             isIncomingRequest: deal.isIncomingRequest,
             clientName: deal.clientName,
             clientPhone: deal.clientPhone,
@@ -255,8 +354,23 @@ class DealNotifier extends Notifier<List<DealModel>> {
             respondedAt: (newStatus == 'Approved' || newStatus == 'Rejected') ? DateTime.now() : deal.respondedAt,
             auditHistory: [
               ...deal.auditHistory,
-              DealAuditLog(status: newStatus, timestamp: DateTime.now(), updatedBy: 'Current User', notes: notes),
+              DealAuditLog(
+                status: newStatus, 
+                timestamp: DateTime.now(), 
+                updatedBy: 'Current User', 
+                notes: notes,
+                metadata: milestoneData,
+              ),
             ],
+            tokenAmount: milestoneData?['tokenAmount'] ?? deal.tokenAmount,
+            tokenDate: milestoneData?['tokenDate'] ?? deal.tokenDate,
+            agreementDate: milestoneData?['agreementDate'] ?? deal.agreementDate,
+            bankName: milestoneData?['bankName'] ?? deal.bankName,
+            loanAmount: milestoneData?['loanAmount'] ?? deal.loanAmount,
+            registryDate: milestoneData?['registryDate'] ?? deal.registryDate,
+            registrationNumber: milestoneData?['registrationNumber'] ?? deal.registrationNumber,
+            possessionDate: milestoneData?['possessionDate'] ?? deal.possessionDate,
+            documents: deal.documents,
           )
         else
           deal,
@@ -264,17 +378,61 @@ class DealNotifier extends Notifier<List<DealModel>> {
 
     try {
       await ApiService.put('/deals/$id/status', {
+        'newStage': newStatus,
         'status': newStatus,
         'notes': notes,
+        'milestoneData': milestoneData,
       });
-      // Refresh properties as deal progression might update property status (PRD Sec 9)
+      // Refresh properties and commissions as deal progression updates property status & commission ledger
       ref.read(propertyProvider.notifier).fetchProperties();
+      ref.read(commissionProvider.notifier).fetchCommissions();
     } catch (_) {}
   }
 
   Future<void> respondRequest(String id, String action, [String? remarks]) async {
-    final newStatus = action == 'approve' ? 'Approved' : 'Rejected';
-    updateDealStatus(id, newStatus, remarks);
+    final newStatus = action == 'approve' ? 'Approved' : (action == 'cancel' ? 'Cancelled' : 'Rejected');
+
+    // Update local state immediately for instant UX feedback
+    state = [
+      for (final deal in state)
+        if (deal.id == id || deal.dealCode == id)
+          DealModel(
+            id: deal.id,
+            dealCode: deal.dealCode,
+            propertyId: deal.propertyId,
+            propertyName: deal.propertyName,
+            agencyAId: deal.agencyAId,
+            agencyAName: deal.agencyAName,
+            brokerAId: deal.brokerAId,
+            brokerAName: deal.brokerAName,
+            agencyBId: deal.agencyBId,
+            agencyBName: deal.agencyBName,
+            brokerBId: deal.brokerBId,
+            brokerBName: deal.brokerBName,
+            partnerBroker: deal.partnerBroker,
+            partnerAgency: deal.partnerAgency,
+            status: newStatus,
+            amount: deal.amount,
+            dealValue: deal.dealValue,
+            commissionId: deal.commissionId,
+            isRequest: true,
+            isIncomingRequest: deal.isIncomingRequest,
+            clientName: deal.clientName,
+            clientPhone: deal.clientPhone,
+            clientEmail: deal.clientEmail,
+            clientRequirement: deal.clientRequirement,
+            expectedBudget: deal.expectedBudget,
+            remarks: remarks ?? deal.remarks,
+            createdAt: deal.createdAt,
+            respondedAt: DateTime.now(),
+            auditHistory: [
+              ...deal.auditHistory,
+              DealAuditLog(status: newStatus, timestamp: DateTime.now(), updatedBy: 'Current User', notes: remarks),
+            ],
+          )
+        else
+          deal,
+    ];
 
     try {
       await ApiService.post('/collaborations/$id/respond', {
@@ -283,6 +441,38 @@ class DealNotifier extends Notifier<List<DealModel>> {
       });
       await fetchDeals();
       ref.read(commissionProvider.notifier).fetchCommissions();
+      ref.read(propertyProvider.notifier).fetchProperties();
+    } catch (_) {}
+  }
+
+  Future<void> updateClientInfo(
+    String id, {
+    required String clientName,
+    required String clientPhone,
+    required String clientEmail,
+    String? clientRequirement,
+  }) async {
+    state = [
+      for (final deal in state)
+        if (deal.id == id || deal.dealCode == id)
+          deal.copyWith(
+            clientName: clientName,
+            clientPhone: clientPhone,
+            clientEmail: clientEmail,
+            clientRequirement: clientRequirement ?? deal.clientRequirement,
+          )
+        else
+          deal,
+    ];
+
+    try {
+      await ApiService.put('/deals/$id/client', {
+        'clientName': clientName,
+        'clientPhone': clientPhone,
+        'clientEmail': clientEmail,
+        'clientRequirement': ?clientRequirement,
+      });
+      await fetchDeals();
     } catch (_) {}
   }
 }
@@ -291,11 +481,169 @@ final dealProvider = NotifierProvider<DealNotifier, List<DealModel>>(() {
   return DealNotifier();
 });
 
+/// RBAC & Broker Property Access Control Provider (PRD Sections 3, 4.1.1, 5)
+/// - Super Admin: has full visibility across all agencies and properties.
+/// - Agency Admin: strictly isolated to their own agency's inventory.
+/// - Broker: only has access to assigned properties + created properties within their agency, plus public marketplace listings.
+final accessiblePropertiesProvider = Provider<List<PropertyModel>>((ref) {
+  final allProps = ref.watch(propertyProvider);
+  final userRole = AuthStorageService.getUserRole();
+  final userData = AuthStorageService.getUserData();
+  final userAgency = userData?['agency'] as Map<String, dynamic>?;
+  final userAgencyId = userData?['agencyId'] ?? userData?['agency_id'] ?? userAgency?['id'];
+  final userAgencyName = ((userAgency?['name'] ?? userData?['agencyName'] ?? '') as String).trim().toLowerCase();
+  final rawRole = (userData?['role'] as String?)?.toLowerCase();
+
+  // Super Admin: full access across all agencies
+  if (rawRole == 'super_admin') {
+    return allProps;
+  }
+
+  // Agency Admin: strictly scoped to their own agency properties
+  if (userRole == UserRole.agencyAdmin) {
+    if (userAgencyId == null && userAgencyName.isEmpty) return [];
+    return allProps.where((p) {
+      if (userAgencyId != null && p.agencyId != null && p.agencyId.toString() == userAgencyId.toString()) {
+        return true;
+      }
+      if (userAgencyName.isNotEmpty && p.agencyName.trim().toLowerCase() == userAgencyName) {
+        return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  // Broker: strictly assigned properties + properties created/managed by this broker
+  final currentUserId = userData?['id']?.toString() ?? '';
+  final currentUserName = (userData?['name']?.toString() ?? '').trim().toLowerCase();
+
+  final rawAssigned = userData?['assignedPropertyIds'] ?? (userData?['permissions'] is Map ? userData!['permissions']['assignedPropertyIds'] : null);
+  final assignedSet = <String>{};
+  if (rawAssigned is List) {
+    for (final id in rawAssigned) {
+      if (id != null) assignedSet.add(id.toString());
+    }
+  }
+
+  return allProps.where((p) {
+    final belongsToAgency = (userAgencyId != null && p.agencyId != null && p.agencyId.toString() == userAgencyId.toString()) ||
+        (userAgencyName.isNotEmpty && p.agencyName.trim().toLowerCase() == userAgencyName);
+
+    // 1. Explicitly assigned by Agency Admin
+    if (assignedSet.contains(p.id)) return true;
+    // 2. Created by / assigned broker within agency
+    if (belongsToAgency && p.brokerId != null && p.brokerId.toString() == currentUserId) return true;
+    if (belongsToAgency && currentUserName.isNotEmpty && p.brokerName.trim().toLowerCase() == currentUserName) return true;
+    return false;
+  }).toList();
+});
+
+/// RBAC Scoped Deals & Collaboration Hub Provider (PRD Section 5)
+/// - Super Admin: sees all deals.
+/// - Agency Admin: strictly scoped to deals and requests involving their agency.
+/// - Broker: strictly only deals and collaboration requests related to their assigned properties or assigned broker ID.
+final accessibleDealsProvider = Provider<List<DealModel>>((ref) {
+  final allDeals = ref.watch(dealProvider);
+  final userRole = AuthStorageService.getUserRole();
+  final userData = AuthStorageService.getUserData();
+  final userAgency = userData?['agency'] as Map<String, dynamic>?;
+  final userAgencyId = userData?['agencyId'] ?? userData?['agency_id'] ?? userAgency?['id'];
+  final userAgencyName = ((userAgency?['name'] ?? userData?['agencyName'] ?? '') as String).trim().toLowerCase();
+  final rawRole = (userData?['role'] as String?)?.toLowerCase();
+
+  if (rawRole == 'super_admin') {
+    return allDeals;
+  }
+
+  // Agency Admin: only deals and collaboration requests involving their agency
+  if (userRole == UserRole.agencyAdmin) {
+    final currentUserId = userData?['id']?.toString() ?? '';
+    if (userAgencyId == null && userAgencyName.isEmpty && currentUserId.isEmpty) return [];
+    return allDeals.where((deal) {
+      if (userAgencyId != null) {
+        if (deal.agencyAId != null && deal.agencyAId.toString() == userAgencyId.toString()) return true;
+        if (deal.agencyBId != null && deal.agencyBId.toString() == userAgencyId.toString()) return true;
+      }
+      if (userAgencyName.isNotEmpty) {
+        if (deal.agencyAName.trim().toLowerCase() == userAgencyName) return true;
+        if (deal.agencyBName.trim().toLowerCase() == userAgencyName) return true;
+      }
+      if (currentUserId.isNotEmpty) {
+        if (deal.brokerAId != null && deal.brokerAId.toString() == currentUserId) return true;
+        if (deal.brokerBId != null && deal.brokerBId.toString() == currentUserId) return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  // Broker: strictly scoped to their assigned properties and directly assigned deals
+  final currentUserId = userData?['id']?.toString() ?? '';
+  final currentUserName = (userData?['name']?.toString() ?? '').trim().toLowerCase();
+
+  final rawAssigned = userData?['assignedPropertyIds'] ?? (userData?['permissions'] is Map ? userData!['permissions']['assignedPropertyIds'] : null);
+  final assignedSet = <String>{};
+  if (rawAssigned is List) {
+    for (final id in rawAssigned) {
+      if (id != null) assignedSet.add(id.toString());
+    }
+  }
+
+  // Also include any assigned/owned properties from accessiblePropertiesProvider
+  final accessibleProps = ref.watch(accessiblePropertiesProvider);
+  for (final p in accessibleProps) {
+    if (p.id.isNotEmpty) assignedSet.add(p.id);
+  }
+
+  return allDeals.where((deal) {
+    // 1. Property-level match with broker's assigned properties
+    if (deal.propertyId.isNotEmpty && assignedSet.contains(deal.propertyId)) {
+      return true;
+    }
+    // 2. Direct Broker assignment match (Deal creator or assigned collaborator)
+    if (currentUserId.isNotEmpty) {
+      if (deal.brokerAId != null && deal.brokerAId.toString() == currentUserId) return true;
+      if (deal.brokerBId != null && deal.brokerBId.toString() == currentUserId) return true;
+    }
+    if (currentUserName.isNotEmpty) {
+      if (deal.brokerAName.trim().toLowerCase() == currentUserName) return true;
+      if (deal.brokerBName.trim().toLowerCase() == currentUserName) return true;
+      if (deal.partnerBroker.trim().toLowerCase() == currentUserName) return true;
+    }
+    return false;
+  }).toList();
+});
+
+/// Active Selected Deal Milestone Stage Provider (for seamless cross-screen deep-linking)
+class SelectedDealStageNotifier extends Notifier<String> {
+  @override
+  String build() => 'All';
+
+  void setStage(String stage) {
+    state = stage;
+  }
+}
+
+final selectedDealStageProvider = NotifierProvider<SelectedDealStageNotifier, String>(() {
+  return SelectedDealStageNotifier();
+});
+
 class CommissionNotifier extends Notifier<List<CommissionModel>> {
+  StreamSubscription? _fcmSub;
+
   @override
   List<CommissionModel> build() {
+    final cached = AuthStorageService.getCachedCommissions();
+    _fcmSub = PushNotificationService.onMessageReceivedStream.stream.listen((message) {
+      final type = message.data['type'] as String?;
+      if (type == null || type == 'commission' || type == 'deal') {
+        fetchCommissions();
+      }
+    });
+    ref.onDispose(() {
+      _fcmSub?.cancel();
+    });
     Future.microtask(() => fetchCommissions());
-    return [];
+    return cached;
   }
 
   Future<void> fetchCommissions() async {
@@ -306,6 +654,9 @@ class CommissionNotifier extends Notifier<List<CommissionModel>> {
             .map((e) => CommissionModel.fromJson(Map<String, dynamic>.from(e)))
             .toList();
         state = list;
+        try {
+          await AuthStorageService.saveCachedCommissions(list);
+        } catch (_) {}
       }
     } catch (_) {}
   }
@@ -382,6 +733,7 @@ final analyticsProvider = NotifierProvider<AnalyticsNotifier, AnalyticsModel>(()
 
 class UnreadMessagesNotifier extends Notifier<int> {
   dynamic _subscription;
+  StreamSubscription? _fcmSub;
 
   @override
   int build() {
@@ -394,11 +746,18 @@ class UnreadMessagesNotifier extends Notifier<int> {
         }, onError: (_) {});
       } catch (_) {}
     }
+    _fcmSub = PushNotificationService.onMessageReceivedStream.stream.listen((message) {
+      final type = message.data['type'] as String?;
+      if (type == 'chat' || type == null) {
+        fetchUnreadCount();
+      }
+    });
     fetchUnreadCount();
     ref.onDispose(() {
       try {
         _subscription?.cancel();
       } catch (_) {}
+      _fcmSub?.cancel();
     });
     return 0;
   }
@@ -406,7 +765,11 @@ class UnreadMessagesNotifier extends Notifier<int> {
   Future<void> fetchUnreadCount() async {
     try {
       final userData = AuthStorageService.getUserData();
-      final currentUserId = userData?['id']?.toString() ?? '1';
+      final currentUserId = userData?['id']?.toString() ?? '';
+      if (currentUserId.isEmpty) {
+        state = 0;
+        return;
+      }
       final res = await ApiService.get('/chat/conversations?userId=$currentUserId');
       if (res['success'] == true && res['data'] != null) {
         final list = res['data'] as List;
@@ -435,8 +798,12 @@ class UnreadNotificationsNotifier extends Notifier<int> {
 
   @override
   int build() {
-    _fcmSubscription = PushNotificationService.onMessageReceivedStream.stream.listen((_) {
-      fetchUnreadCount();
+    _fcmSubscription = PushNotificationService.onMessageReceivedStream.stream.listen((message) {
+      final type = message.data['type'] as String?;
+      // Exclude chat push notifications from triggering in-app notification count
+      if (type != 'chat') {
+        fetchUnreadCount();
+      }
     });
     ref.onDispose(() {
       _fcmSubscription?.cancel();
@@ -460,7 +827,10 @@ class UnreadNotificationsNotifier extends Notifier<int> {
       );
 
       if (res['success'] == true) {
-        final count = (res['unreadCount'] as num? ?? res['count'] as num? ?? 0).toInt();
+        final data = res['data'];
+        final count = (data is Map && data['unreadCount'] is num)
+            ? (data['unreadCount'] as num).toInt()
+            : (res['unreadCount'] as num? ?? res['count'] as num? ?? 0).toInt();
         state = count;
       }
     } catch (_) {}
@@ -478,8 +848,9 @@ final unreadNotificationsProvider = NotifierProvider<UnreadNotificationsNotifier
 class OwnerNotifier extends Notifier<List<OwnerModel>> {
   @override
   List<OwnerModel> build() {
-    fetchOwners();
-    return [];
+    final cached = AuthStorageService.getCachedOwners();
+    Future.microtask(() => fetchOwners());
+    return cached;
   }
 
   Future<void> fetchOwners([String? search]) async {
@@ -494,6 +865,11 @@ class OwnerNotifier extends Notifier<List<OwnerModel>> {
           list.add(OwnerModel.fromJson(Map<String, dynamic>.from(item)));
         }
         state = list;
+        if (search == null || search.trim().isEmpty) {
+          try {
+            await AuthStorageService.saveCachedOwners(list);
+          } catch (_) {}
+        }
       }
     } catch (_) {}
   }
@@ -507,6 +883,9 @@ class OwnerNotifier extends Notifier<List<OwnerModel>> {
           newOwner,
           ...state.where((o) => o.id != newOwner.id),
         ];
+        try {
+          await AuthStorageService.saveCachedOwners(state);
+        } catch (_) {}
         return newOwner;
       }
     } catch (_) {}
@@ -529,6 +908,9 @@ class OwnerNotifier extends Notifier<List<OwnerModel>> {
       final res = await ApiService.delete('/owners/$id');
       if (res['success'] == true) {
         state = state.where((o) => o.id != id).toList();
+        try {
+          await AuthStorageService.saveCachedOwners(state);
+        } catch (_) {}
         return true;
       }
     } catch (_) {}

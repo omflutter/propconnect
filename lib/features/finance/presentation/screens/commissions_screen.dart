@@ -7,7 +7,8 @@ import 'package:propconnect/core/models/commission_model.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 
 class CommissionsScreen extends ConsumerStatefulWidget {
-  const CommissionsScreen({super.key});
+  final int initialTabIndex;
+  const CommissionsScreen({super.key, this.initialTabIndex = 0});
 
   @override
   ConsumerState<CommissionsScreen> createState() => _CommissionsScreenState();
@@ -30,7 +31,14 @@ class _CommissionsScreenState extends ConsumerState<CommissionsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 1),
+    );
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -59,9 +67,9 @@ class _CommissionsScreenState extends ConsumerState<CommissionsScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Commission & Earnings',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: Text(
+          _tabController.index == 1 ? 'Payment Settlements' : 'Commission & Earnings',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,

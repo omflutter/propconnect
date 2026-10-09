@@ -21,6 +21,9 @@ class PropertiesScreen extends ConsumerStatefulWidget {
 class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
+  String _visibilityFilter = 'All'; // 'All' | 'Public' | 'Private'
+  String _purposeFilter = 'All';    // 'All' | 'Sale' | 'Rent'
+  String _statusFilter = 'All';     // 'All' | 'Available' | 'Under Negotiation' | 'Token Done' | 'Sold' | 'Rented'
 
   @override
   void initState() {
@@ -144,7 +147,7 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
 
   // Interactive Export to Excel Modal
   void _showExportModal(List<PropertyModel> displayedProperties) {
-    final allProperties = ref.read(propertyProvider);
+    final allProperties = ref.read(accessiblePropertiesProvider);
     bool exportOnlyFiltered = _searchQuery.isNotEmpty && displayedProperties.length != allProperties.length;
     bool isExporting = false;
 
@@ -1249,39 +1252,35 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final properties = ref.watch(propertyProvider);
+    final properties = ref.watch(accessiblePropertiesProvider);
     final isLoading = ref.watch(isPropertiesLoadingProvider);
     final loadError = ref.watch(propertiesErrorProvider);
     final autoSyncState = ref.watch(autoSyncProvider);
-    final userData = AuthStorageService.getUserData();
-    final userAgency = userData?['agency'] as Map<String, dynamic>?;
-    final userAgencyId = userData?['agencyId'] ?? userData?['agency_id'] ?? userAgency?['id'];
-    final userAgencyName = (userAgency?['name'] as String?) ??
-        (userData?['agencyName'] as String?) ??
-        (userData?['agency_name'] as String?) ??
-        ref.watch(agencyProvider).name;
-    final userName = (userData?['name'] as String?) ?? '';
-    final userRole = (userData?['role'] as String?)?.toLowerCase();
 
-    // Only show properties created by / belonging to the current user or agency
-    var myProperties = properties.where((p) {
-      if (userRole == 'super_admin') return true;
-      // 1. Strict agencyId check if available
-      if (userAgencyId != null && p.agencyId != null) {
-        if (p.agencyId.toString() == userAgencyId.toString()) return true;
-      }
-      // 2. Exact agency name match if not empty
-      if (userAgencyName.trim().isNotEmpty && p.agencyName.trim().isNotEmpty) {
-        if (p.agencyName.toLowerCase().trim() == userAgencyName.toLowerCase().trim()) return true;
-      }
-      // 3. Exact broker name match if not empty
-      if (userName.trim().isNotEmpty && p.brokerName.trim().isNotEmpty) {
-        if (p.brokerName.toLowerCase().trim() == userName.toLowerCase().trim()) return true;
-      }
-      return false;
-    }).toList();
+    // Apply Filter & Search on strictly RBAC & Agency scoped properties
+    var myProperties = properties;
 
-    // Apply Search Filter
+    if (_visibilityFilter == 'Public') {
+      myProperties = myProperties.where((p) => p.isPublic).toList();
+    } else if (_visibilityFilter == 'Private') {
+      myProperties = myProperties.where((p) => !p.isPublic).toList();
+    }
+
+    if (_purposeFilter != 'All') {
+      myProperties = myProperties.where((p) {
+        final t = p.type.toLowerCase();
+        final pur = p.purpose.toLowerCase();
+        final target = _purposeFilter.toLowerCase();
+        return t == target || pur == target;
+      }).toList();
+    }
+
+    if (_statusFilter != 'All') {
+      myProperties = myProperties.where((p) =>
+        p.status.toLowerCase() == _statusFilter.toLowerCase()
+      ).toList();
+    }
+
     if (_searchQuery.isNotEmpty) {
       myProperties = myProperties.where((p) =>
         p.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -1334,7 +1333,7 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
         children: [
           // Search Bar Section
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             color: Colors.white,
             child: TextField(
               controller: _searchCtrl,
@@ -1360,6 +1359,9 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
               ),
             ),
           ),
+
+          // Filters Bar
+          _buildFilterBar(properties, myProperties),
           const Divider(height: 1),
 
           // Active Feed Auto-Sync Status Bar
@@ -1382,6 +1384,272 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
         backgroundColor: AppColors.primaryBlue,
         icon: const Icon(Icons.add, color: Colors.white, size: 20),
         label: const Text('Add Property', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  void _showStatusFilterModal() {
+    final statusList = ['All', 'Available', 'Under Negotiation', 'Token Done', 'Sold', 'Rented'];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Filter by Property Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    if (_statusFilter != 'All')
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _statusFilter = 'All');
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Reset', style: TextStyle(color: AppColors.primaryBlue)),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              ...statusList.map((st) {
+                final isSelected = _statusFilter == st;
+                return ListTile(
+                  title: Text(st == 'All' ? 'All Statuses' : st, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                  trailing: isSelected ? const Icon(Icons.check, color: AppColors.primaryBlue) : null,
+                  onTap: () {
+                    setState(() => _statusFilter = st);
+                    Navigator.pop(ctx);
+                  },
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterBar(List<PropertyModel> allProps, List<PropertyModel> filteredProps) {
+    final hasActiveFilter = _visibilityFilter != 'All' || _purposeFilter != 'All' || _statusFilter != 'All' || _searchQuery.isNotEmpty;
+
+    final publicCount = allProps.where((p) => p.isPublic).length;
+    final privateCount = allProps.where((p) => !p.isPublic).length;
+    final saleCount = allProps.where((p) => p.type.toLowerCase() == 'sale' || p.purpose.toLowerCase() == 'sale').length;
+    final rentCount = allProps.where((p) => p.type.toLowerCase() == 'rent' || p.purpose.toLowerCase() == 'rent').length;
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                // Visibility: ALL
+                _buildFilterChip(
+                  label: 'All (${allProps.length})',
+                  isSelected: _visibilityFilter == 'All',
+                  onTap: () => setState(() => _visibilityFilter = 'All'),
+                ),
+                const Gap(8),
+                // Visibility: PUBLIC
+                _buildFilterChip(
+                  label: 'Public ($publicCount)',
+                  icon: Icons.public,
+                  iconColor: _visibilityFilter == 'Public' ? Colors.white : Colors.green.shade700,
+                  isSelected: _visibilityFilter == 'Public',
+                  selectedColor: Colors.green.shade700,
+                  onTap: () => setState(() => _visibilityFilter = 'Public'),
+                ),
+                const Gap(8),
+                // Visibility: PRIVATE
+                _buildFilterChip(
+                  label: 'Private ($privateCount)',
+                  icon: Icons.lock_outline,
+                  iconColor: _visibilityFilter == 'Private' ? Colors.white : Colors.amber.shade900,
+                  isSelected: _visibilityFilter == 'Private',
+                  selectedColor: Colors.amber.shade800,
+                  onTap: () => setState(() => _visibilityFilter = 'Private'),
+                ),
+                const Gap(10),
+                Container(height: 20, width: 1, color: Colors.grey.shade300),
+                const Gap(10),
+                // Purpose: SALE
+                _buildFilterChip(
+                  label: 'Sale ($saleCount)',
+                  isSelected: _purposeFilter == 'Sale',
+                  onTap: () => setState(() => _purposeFilter = _purposeFilter == 'Sale' ? 'All' : 'Sale'),
+                ),
+                const Gap(8),
+                // Purpose: RENT
+                _buildFilterChip(
+                  label: 'Rent ($rentCount)',
+                  isSelected: _purposeFilter == 'Rent',
+                  onTap: () => setState(() => _purposeFilter = _purposeFilter == 'Rent' ? 'All' : 'Rent'),
+                ),
+                const Gap(10),
+                Container(height: 20, width: 1, color: Colors.grey.shade300),
+                const Gap(10),
+                // Status Filter Button
+                InkWell(
+                  onTap: _showStatusFilterModal,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: _statusFilter != 'All' ? AppColors.primaryBlue.withValues(alpha: 0.1) : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _statusFilter != 'All' ? AppColors.primaryBlue : AppColors.border,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.flag_outlined,
+                          size: 14,
+                          color: _statusFilter != 'All' ? AppColors.primaryBlue : AppColors.textSecondary,
+                        ),
+                        const Gap(5),
+                        Text(
+                          _statusFilter == 'All' ? 'Status' : _statusFilter,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: _statusFilter != 'All' ? FontWeight.bold : FontWeight.w600,
+                            color: _statusFilter != 'All' ? AppColors.primaryBlue : AppColors.textPrimary,
+                          ),
+                        ),
+                        const Gap(4),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 16,
+                          color: _statusFilter != 'All' ? AppColors.primaryBlue : AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (hasActiveFilter) ...[
+                  const Gap(8),
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _visibilityFilter = 'All';
+                        _purposeFilter = 'All';
+                        _statusFilter = 'All';
+                        _searchCtrl.clear();
+                        _searchQuery = '';
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.close, size: 13, color: Colors.red.shade700),
+                          const Gap(4),
+                          Text(
+                            'Reset',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (hasActiveFilter) ...[
+            const Gap(8),
+            Row(
+              children: [
+                Text(
+                  'Showing ${filteredProps.length} of ${allProps.length} properties',
+                  style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _visibilityFilter = 'All';
+                      _purposeFilter = 'All';
+                      _statusFilter = 'All';
+                      _searchCtrl.clear();
+                      _searchQuery = '';
+                    });
+                  },
+                  child: const Text(
+                    'Clear all',
+                    style: TextStyle(fontSize: 11.5, color: AppColors.primaryBlue, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    IconData? icon,
+    Color? iconColor,
+    Color? selectedColor,
+  }) {
+    final activeBg = selectedColor ?? AppColors.primaryBlue;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBg : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? activeBg : AppColors.border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 13, color: iconColor),
+              const Gap(5),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected ? Colors.white : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1468,6 +1736,8 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
       );
     }
 
+    final hasActiveFilter = _visibilityFilter != 'All' || _purposeFilter != 'All' || _statusFilter != 'All' || _searchQuery.isNotEmpty;
+
     if (list.isEmpty) {
       return Center(
         child: SingleChildScrollView(
@@ -1482,44 +1752,65 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                   color: AppColors.primaryBlue.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.house_outlined, size: 48, color: AppColors.primaryBlue),
+                child: Icon(hasActiveFilter ? Icons.filter_alt_off_outlined : Icons.house_outlined, size: 48, color: AppColors.primaryBlue),
               ),
               const Gap(16),
-              const Text(
-                'No Properties Found',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              Text(
+                hasActiveFilter ? 'No Matching Properties' : 'No Properties Found',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
               const Gap(8),
-              const Text(
-                'Properties posted by your agency or imported from 99acres / MagicBricks will appear here.',
+              Text(
+                hasActiveFilter
+                    ? 'No properties match your active filters. Try changing or clearing filters.'
+                    : 'Properties posted by your agency or imported from 99acres / MagicBricks will appear here.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
               ),
               const Gap(20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () => context.push('/add-edit-property/new'),
-                    icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                    label: const Text('Post Property', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryBlue,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
+              if (hasActiveFilter)
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _visibilityFilter = 'All';
+                      _purposeFilter = 'All';
+                      _statusFilter = 'All';
+                      _searchCtrl.clear();
+                      _searchQuery = '';
+                    });
+                  },
+                  icon: const Icon(Icons.clear_all, size: 16, color: Colors.white),
+                  label: const Text('Clear All Filters', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  const Gap(12),
-                  OutlinedButton.icon(
-                    onPressed: () => ref.read(propertyProvider.notifier).fetchProperties(),
-                    icon: const Icon(Icons.refresh, size: 16, color: AppColors.primaryBlue),
-                    label: const Text('Refresh', style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.primaryBlue),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => context.push('/add-edit-property/new'),
+                      icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                      label: const Text('Post Property', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                    const Gap(12),
+                    OutlinedButton.icon(
+                      onPressed: () => ref.read(propertyProvider.notifier).fetchProperties(),
+                      icon: const Icon(Icons.refresh, size: 16, color: AppColors.primaryBlue),
+                      label: const Text('Refresh', style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.primaryBlue),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -1588,34 +1879,87 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                           ? Image.network(prop.images.first, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Center(child: Icon(Icons.apartment, size: 48, color: AppColors.primaryBlue)))
                           : const Center(child: Icon(Icons.apartment, size: 48, color: AppColors.primaryBlue)),
                     ),
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: prop.type == 'Sale' ? AppColors.primaryBlue : Colors.teal,
-                          borderRadius: BorderRadius.circular(6),
+                    if (prop.status.toLowerCase() == 'sold' || prop.status.toLowerCase() == 'rented')
+                      Positioned(
+                        top: 10,
+                        left: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade700,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
+                            ],
+                          ),
+                          child: Text(
+                            prop.status.toUpperCase(),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.8),
+                          ),
                         ),
-                        child: Text(
-                          'For ${prop.type}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                      )
+                    else
+                      Positioned(
+                        top: 10,
+                        left: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: prop.type == 'Sale' ? AppColors.primaryBlue : Colors.teal,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'For ${prop.type}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
                         ),
                       ),
-                    ),
                     Positioned(
                       top: 10,
                       right: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          prop.bhk,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: prop.isPublic
+                                  ? Colors.green.shade700.withValues(alpha: 0.95)
+                                  : Colors.amber.shade900.withValues(alpha: 0.95),
+                              borderRadius: BorderRadius.circular(6),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 4),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  prop.isPublic ? Icons.public : Icons.lock_outline,
+                                  size: 11,
+                                  color: Colors.white,
+                                ),
+                                const Gap(4),
+                                Text(
+                                  prop.isPublic ? 'Public' : 'Private',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Gap(6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              prop.bhk,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -1637,13 +1981,55 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                             ),
                           ),
                           const Gap(8),
+                          // Public / Private Indicator
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
+                              color: prop.isPublic ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: prop.isPublic ? const Color(0xFF86EFAC) : const Color(0xFFFCD34D),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  prop.isPublic ? Icons.public : Icons.lock_outline,
+                                  size: 11.5,
+                                  color: prop.isPublic ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                                ),
+                                const Gap(4),
+                                Text(
+                                  prop.isPublic ? 'Public' : 'Private',
+                                  style: TextStyle(
+                                    color: prop.isPublic ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Gap(6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                            decoration: BoxDecoration(
+                              color: (prop.status.toLowerCase() == 'sold' || prop.status.toLowerCase() == 'rented')
+                                  ? const Color(0xFFFEE2E2)
+                                  : const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(prop.status, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
+                            child: Text(
+                              prop.status,
+                              style: TextStyle(
+                                color: (prop.status.toLowerCase() == 'sold' || prop.status.toLowerCase() == 'rented')
+                                    ? const Color(0xFFDC2626)
+                                    : AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -1679,7 +2065,7 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
                               ),
                             ),
                           ),
-                          const Gap(6),
+                          const Gap(8),
                           Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey.shade400),
                         ],
                       ),

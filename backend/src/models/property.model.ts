@@ -20,6 +20,7 @@ export class Property extends Model {
   declare isPublic: boolean;
   declare agencyId: number;
   declare agencyName: string;
+  declare brokerId: number | null;
   declare brokerName: string;
   declare bathrooms: number;
   declare balcony: number;
@@ -36,6 +37,7 @@ export class Property extends Model {
   declare city: string;
   declare area: string;
   declare address: string;
+  declare pincode: string;
   declare googleMapUrl: string;
   declare latitude: number;
   declare longitude: number;
@@ -134,6 +136,11 @@ Property.init(
       type: DataTypes.STRING,
       defaultValue: 'Sunrise Properties',
     },
+    brokerId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: null,
+    },
     brokerName: {
       type: DataTypes.STRING,
       defaultValue: 'Om Shivam',
@@ -188,6 +195,10 @@ Property.init(
     },
     address: {
       type: DataTypes.STRING,
+      defaultValue: '',
+    },
+    pincode: {
+      type: DataTypes.STRING(16),
       defaultValue: '',
     },
     googleMapUrl: {

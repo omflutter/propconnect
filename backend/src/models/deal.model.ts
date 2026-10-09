@@ -37,6 +37,15 @@ export class Deal extends Model {
     updatedBy?: string;
     remarks?: string;
   }>;
+  declare documents: Array<{
+    id: string;
+    title: string;
+    documentType: string;
+    fileUrl: string;
+    uploadedBy: string;
+    uploadedAt: string;
+    notes?: string;
+  }>;
 
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -139,6 +148,10 @@ Deal.init(
       defaultValue: '',
     },
     auditHistory: {
+      type: DataTypes.JSON,
+      defaultValue: [],
+    },
+    documents: {
       type: DataTypes.JSON,
       defaultValue: [],
     },

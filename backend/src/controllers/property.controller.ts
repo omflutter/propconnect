@@ -74,6 +74,8 @@ export const getProperties = async (req: Request, res: Response) => {
 
     if (status && status !== 'All') {
       whereClause.status = status;
+    } else if (req.query.excludeSold === 'true') {
+      whereClause.status = { [Op.notIn]: ['Sold', 'Rented', 'sold', 'rented'] };
     }
 
     if (city && city !== 'All') {
@@ -163,6 +165,7 @@ export const createProperty = async (req: Request, res: Response) => {
 
     let targetAgencyId = req.body.agencyId ? parseInt(req.body.agencyId, 10) : null;
     let targetAgencyName = req.body.agencyName && String(req.body.agencyName).trim() ? String(req.body.agencyName).trim() : '';
+    let targetBrokerId = req.body.brokerId ? parseInt(String(req.body.brokerId), 10) : null;
     let targetBrokerName = req.body.brokerName && String(req.body.brokerName).trim() ? String(req.body.brokerName).trim() : '';
 
     const authHeader = req.headers.authorization;
@@ -170,6 +173,7 @@ export const createProperty = async (req: Request, res: Response) => {
       try {
         const decoded = jwt.verify(authHeader.split(' ')[1], env.JWT_SECRET) as any;
         if (!targetAgencyId && decoded.agencyId) targetAgencyId = parseInt(String(decoded.agencyId), 10);
+        if (!targetBrokerId && decoded.id) targetBrokerId = parseInt(String(decoded.id), 10);
         if (!targetBrokerName && decoded.name) targetBrokerName = decoded.name;
       } catch (_) {}
     }
@@ -233,6 +237,7 @@ export const createProperty = async (req: Request, res: Response) => {
       isPublic: req.body.isPublic !== undefined ? Boolean(req.body.isPublic) : false,
       agencyId: targetAgencyId,
       agencyName: targetAgencyName,
+      brokerId: targetBrokerId,
       brokerName: targetBrokerName,
       bathrooms: req.body.bathrooms ? parseInt(req.body.bathrooms, 10) : 2,
       balcony: req.body.balcony ? parseInt(req.body.balcony, 10) : 1,
@@ -247,6 +252,7 @@ export const createProperty = async (req: Request, res: Response) => {
       city: req.body.city || 'Mumbai',
       area: req.body.area || '',
       address: req.body.address || '',
+      pincode: req.body.pincode ? String(req.body.pincode).trim() : '',
       googleMapUrl: req.body.googleMapUrl || '',
       latitude: req.body.latitude ? parseFloat(req.body.latitude) : 19.076,
       longitude: req.body.longitude ? parseFloat(req.body.longitude) : 72.8777,
@@ -460,8 +466,9 @@ export const importProperties = async (req: Request, res: Response) => {
             country: 'India',
             state: 'Maharashtra',
             city: 'Mumbai',
-            area: '',
-            address: '',
+            area: item.area ? String(item.area) : '',
+            address: item.address ? String(item.address) : '',
+            pincode: item.pincode ? String(item.pincode).trim() : '',
             googleMapUrl: '',
             latitude: 19.076,
             longitude: 72.8777,
@@ -560,6 +567,7 @@ export const updateProperty = async (req: Request, res: Response) => {
     if (req.body.city) property.city = req.body.city;
     if (req.body.area) property.area = req.body.area;
     if (req.body.address) property.address = req.body.address;
+    if (req.body.pincode !== undefined) property.pincode = String(req.body.pincode).trim();
     if (req.body.googleMapUrl !== undefined) property.googleMapUrl = req.body.googleMapUrl;
     if (req.body.latitude !== undefined) property.latitude = parseFloat(req.body.latitude);
     if (req.body.longitude !== undefined) property.longitude = parseFloat(req.body.longitude);
@@ -575,7 +583,8 @@ export const updateProperty = async (req: Request, res: Response) => {
     if (req.body.images) property.images = req.body.images;
     if (req.body.floorPlans !== undefined) property.floorPlans = req.body.floorPlans;
     if (req.body.videos !== undefined) property.videos = req.body.videos;
-    if (req.body.documents !== undefined) property.documents = req.body.documents;
+    if (req.body.brokerId !== undefined) property.brokerId = req.body.brokerId ? parseInt(String(req.body.brokerId), 10) : null;
+    if (req.body.brokerName !== undefined) property.brokerName = req.body.brokerName;
 
     await property.save();
 

@@ -8,6 +8,8 @@ import 'package:propconnect/core/routing/app_router.dart';
 import 'package:propconnect/core/providers/user_role_provider.dart';
 import 'package:propconnect/core/network/api_service.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
+import 'package:propconnect/core/providers/data_providers.dart';
+import 'package:propconnect/core/providers/agency_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -83,6 +85,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         user: user ?? {},
         role: roleEnum,
       );
+
+      // Reset and refresh state cleanly for the authenticated user and agency
+      ref.read(propertyProvider.notifier).clearAndRefresh();
+      ref.read(dealProvider.notifier).clearAndRefresh();
+      ref.read(commissionProvider.notifier).fetchCommissions();
+
+      if (user != null && user['agency'] is Map) {
+        final agencyMap = user['agency'] as Map<String, dynamic>;
+        ref.read(agencyProvider.notifier).updateAgencyDetails(
+          agencyMap['name'] ?? '',
+          agencyMap['reraNumber'] ?? '',
+          agencyMap['adminEmail'] ?? '',
+          agencyMap['address'] ?? '',
+        );
+      }
 
       if (!mounted) return;
 

@@ -6,14 +6,42 @@ import { User } from '../models/user.model';
 import { Agency } from '../models/agency.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { Property } from '../models/property.model';
 import { WhatsAppService } from '../services/whatsapp.service';
+
+/**
+ * Helper to extract authenticated user's role and agencyId from JWT
+ */
+function extractCallerAuth(req: Request): { role: string | null; agencyId: number | null; id: number | null } {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], env.JWT_SECRET) as any;
+      return {
+        role: decoded.role || null,
+        agencyId: decoded.agencyId ? parseInt(String(decoded.agencyId), 10) : null,
+        id: decoded.id ? parseInt(String(decoded.id), 10) : null,
+      };
+    } catch (_) {}
+  }
+  return { role: null, agencyId: null, id: null };
+}
 
 /**
  * Onboard / Register a new Broker under an Agency - 100% PostgreSQL
  */
 export const createBroker = async (req: Request, res: Response) => {
   try {
-    const { name, email, phone, role, agencyId, password } = req.body;
+    const caller = extractCallerAuth(req);
+    if (caller.role === 'broker') {
+      return errorResponse(res, 'Access denied. Brokers cannot onboard brokers or administrators.', null, 403);
+    }
+
+    const { name, email, phone, role, agencyId, password, assignedPropertyIds } = req.body;
+
+    if (caller.role === 'agency_admin' && role === 'super_admin') {
+      return errorResponse(res, 'Access denied. Agency admins cannot create super admin accounts.', null, 403);
+    }
 
     if (!name || !email) {
       return errorResponse(res, 'Broker Name and Email are required', null, 400);
@@ -26,15 +54,10 @@ export const createBroker = async (req: Request, res: Response) => {
       return errorResponse(res, 'An account with this email address already exists', null, 400);
     }
 
-    // Resolve agencyId: from body or from JWT token header
-    let targetAgencyId = agencyId ? parseInt(String(agencyId), 10) : null;
-    const authHeader = req.headers.authorization;
-    if ((!targetAgencyId || isNaN(targetAgencyId)) && authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const decoded = jwt.verify(authHeader.split(' ')[1], env.JWT_SECRET) as any;
-        if (decoded.agencyId) targetAgencyId = parseInt(String(decoded.agencyId), 10);
-      } catch (_) {}
-    }
+    // Resolve agencyId: agency_admin is strictly bound to their own agency
+    let targetAgencyId = (caller.role === 'agency_admin' && caller.agencyId)
+      ? caller.agencyId
+      : (agencyId ? parseInt(String(agencyId), 10) : caller.agencyId);
     if (!targetAgencyId || isNaN(targetAgencyId)) {
       targetAgencyId = 1;
     }
@@ -42,6 +65,10 @@ export const createBroker = async (req: Request, res: Response) => {
     const salt = await bcrypt.genSalt(10);
     const defaultPassword = (password && String(password).trim()) ? String(password).trim() : 'broker123';
     const hashedPassword = await bcrypt.hash(defaultPassword, salt);
+
+    const cleanAssignedIds = Array.isArray(assignedPropertyIds)
+      ? assignedPropertyIds.map((id: any) => parseInt(String(id), 10)).filter((id: number) => !isNaN(id))
+      : [];
 
     const broker = await User.create({
       name: name.trim(),
@@ -52,7 +79,17 @@ export const createBroker = async (req: Request, res: Response) => {
       adminRoleTitle: role === 'agency_admin' ? 'Agency Tenant Admin' : 'Registered Broker',
       agencyId: targetAgencyId,
       status: 'Active',
+      permissions: {
+        assignedPropertyIds: cleanAssignedIds,
+      } as any,
     });
+
+    if (cleanAssignedIds.length > 0) {
+      await Property.update(
+        { brokerName: broker.name },
+        { where: { id: { [Op.in]: cleanAssignedIds } } }
+      ).catch((err) => console.warn('[Property Broker Link Warning]', err));
+    }
 
     const brokerResponse = {
       id: broker.id,
@@ -62,6 +99,8 @@ export const createBroker = async (req: Request, res: Response) => {
       role: broker.role,
       agencyId: broker.agencyId,
       status: broker.status,
+      assignedPropertyIds: cleanAssignedIds,
+      permissions: broker.permissions,
     };
 
     // PRD Sec 16 & 17: Send Welcome WhatsApp message to newly onboarded broker
@@ -101,7 +140,7 @@ export const createBroker = async (req: Request, res: Response) => {
  */
 export const getBrokers = async (req: Request, res: Response) => {
   try {
-    const { agencyId, search } = req.query;
+    const { agencyId, search, allAgencies } = req.query;
 
     const whereClause: any = {
       role: { [Op.in]: ['broker', 'agency_admin'] },
@@ -110,7 +149,7 @@ export const getBrokers = async (req: Request, res: Response) => {
     let targetAgencyId: number | null = null;
     if (agencyId && agencyId !== 'All') {
       targetAgencyId = parseInt(String(agencyId), 10);
-    } else {
+    } else if (allAgencies !== 'true') {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
@@ -141,7 +180,13 @@ export const getBrokers = async (req: Request, res: Response) => {
       order: [['createdAt', 'DESC']],
     });
 
-    return successResponse(res, 'Brokers retrieved successfully from PostgreSQL', brokers);
+    const serializedBrokers = brokers.map((b) => {
+      const data = b.toJSON() as any;
+      data.assignedPropertyIds = data.permissions?.assignedPropertyIds || [];
+      return data;
+    });
+
+    return successResponse(res, 'Brokers retrieved successfully from PostgreSQL', serializedBrokers);
   } catch (error: any) {
     return errorResponse(res, 'Failed to fetch brokers', error.message || error);
   }
@@ -152,12 +197,25 @@ export const getBrokers = async (req: Request, res: Response) => {
  */
 export const updateBroker = async (req: Request, res: Response) => {
   try {
+    const caller = extractCallerAuth(req);
+    if (caller.role === 'broker') {
+      return errorResponse(res, 'Access denied. Brokers cannot modify broker accounts.', null, 403);
+    }
+
     const { id } = req.params;
-    const { name, email, phone, role } = req.body;
+    const { name, email, phone, role, assignedPropertyIds } = req.body;
 
     const broker = await User.findByPk(id);
     if (!broker) {
       return errorResponse(res, 'Broker not found', null, 404);
+    }
+
+    if (caller.role === 'agency_admin' && caller.agencyId && broker.agencyId !== caller.agencyId) {
+      return errorResponse(res, 'Access denied. Cannot update brokers from other agencies.', null, 403);
+    }
+
+    if (caller.role === 'agency_admin' && role === 'super_admin') {
+      return errorResponse(res, 'Access denied. Agency admins cannot elevate users to super admin.', null, 403);
     }
 
     if (name) broker.name = name.trim();
@@ -168,9 +226,30 @@ export const updateBroker = async (req: Request, res: Response) => {
       broker.adminRoleTitle = role === 'agency_admin' ? 'Agency Tenant Admin' : 'Registered Broker';
     }
 
+    if (assignedPropertyIds !== undefined && Array.isArray(assignedPropertyIds)) {
+      const cleanAssignedIds = assignedPropertyIds
+        .map((pid: any) => parseInt(String(pid), 10))
+        .filter((pid: number) => !isNaN(pid));
+      const currentPermissions = (broker.permissions as any) || {};
+      broker.permissions = {
+        ...currentPermissions,
+        assignedPropertyIds: cleanAssignedIds,
+      };
+
+      if (cleanAssignedIds.length > 0) {
+        await Property.update(
+          { brokerName: broker.name },
+          { where: { id: { [Op.in]: cleanAssignedIds } } }
+        ).catch((err) => console.warn('[Property Broker Link Warning]', err));
+      }
+    }
+
     await broker.save();
 
-    return successResponse(res, `Broker "${broker.name}" updated successfully in PostgreSQL`, broker);
+    const responseData = broker.toJSON() as any;
+    responseData.assignedPropertyIds = responseData.permissions?.assignedPropertyIds || [];
+
+    return successResponse(res, `Broker "${broker.name}" updated successfully in PostgreSQL`, responseData);
   } catch (error: any) {
     return errorResponse(res, 'Failed to update broker details', error.message || error);
   }
@@ -181,6 +260,11 @@ export const updateBroker = async (req: Request, res: Response) => {
  */
 export const updateBrokerStatus = async (req: Request, res: Response) => {
   try {
+    const caller = extractCallerAuth(req);
+    if (caller.role === 'broker') {
+      return errorResponse(res, 'Access denied. Brokers cannot change broker account status.', null, 403);
+    }
+
     const { id } = req.params;
     const { status } = req.body;
 
@@ -191,6 +275,10 @@ export const updateBrokerStatus = async (req: Request, res: Response) => {
     const broker = await User.findByPk(id);
     if (!broker) {
       return errorResponse(res, 'Broker not found', null, 404);
+    }
+
+    if (caller.role === 'agency_admin' && caller.agencyId && broker.agencyId !== caller.agencyId) {
+      return errorResponse(res, 'Access denied. Cannot change status of brokers from other agencies.', null, 403);
     }
 
     broker.status = status;
@@ -207,11 +295,20 @@ export const updateBrokerStatus = async (req: Request, res: Response) => {
  */
 export const deleteBroker = async (req: Request, res: Response) => {
   try {
+    const caller = extractCallerAuth(req);
+    if (caller.role === 'broker') {
+      return errorResponse(res, 'Access denied. Brokers cannot delete broker accounts.', null, 403);
+    }
+
     const { id } = req.params;
 
     const broker = await User.findByPk(id);
     if (!broker) {
       return errorResponse(res, 'Broker not found', null, 404);
+    }
+
+    if (caller.role === 'agency_admin' && caller.agencyId && broker.agencyId !== caller.agencyId) {
+      return errorResponse(res, 'Access denied. Cannot delete brokers from other agencies.', null, 403);
     }
 
     await broker.destroy();

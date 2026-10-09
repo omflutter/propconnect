@@ -1,9 +1,20 @@
 import { Router } from 'express';
-import { adminLogin, loginUser, logoutUser, getCurrentUser, updateUserProfile, changePassword } from '../controllers/auth.controller';
+import { adminLogin, loginUser, logoutUser, getCurrentUser, updateUserProfile, changePassword, refreshToken, getActiveSessions, revokeSession, revokeOtherSessions } from '../controllers/auth.controller';
 import { createAgency } from '../controllers/agency.controller';
 import { authenticateJwt } from '../middlewares/auth.middleware';
 
 const router = Router();
+
+/**
+ * @openapi
+ * /auth/refresh:
+ *   post:
+ *     summary: Refresh JWT Authentication Token & Profile
+ *     description: Renews JWT token for active sessions and returns fresh user and agency payload.
+ *     tags:
+ *       - Authentication
+ */
+router.post('/auth/refresh', refreshToken);
 
 /**
  * @openapi
@@ -87,5 +98,44 @@ router.put('/auth/profile', authenticateJwt, updateUserProfile);
  *       - bearerAuth: []
  */
 router.put('/auth/change-password', authenticateJwt, changePassword);
+
+/**
+ * @openapi
+ * /auth/sessions:
+ *   get:
+ *     summary: Get Active Sessions & Devices
+ *     description: Returns current device and other active sessions with detailed hardware, IP, and location metadata (PRD Sec 8.1).
+ *     tags:
+ *       - Authentication
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/auth/sessions', authenticateJwt, getActiveSessions);
+
+/**
+ * @openapi
+ * /auth/sessions/revoke-others:
+ *   post:
+ *     summary: Revoke All Other Remote Sessions
+ *     description: Terminates all remote sessions across other devices except the current one (PRD Sec 8.1).
+ *     tags:
+ *       - Authentication
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/auth/sessions/revoke-others', authenticateJwt, revokeOtherSessions);
+
+/**
+ * @openapi
+ * /auth/sessions/{id}/revoke:
+ *   post:
+ *     summary: Revoke Specific Remote Session
+ *     description: Terminates a specific remote session by ID (PRD Sec 8.1).
+ *     tags:
+ *       - Authentication
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/auth/sessions/:id/revoke', authenticateJwt, revokeSession);
 
 export default router;

@@ -35,7 +35,7 @@ export function Properties() {
   const loadProperties = async () => {
     setIsLoading(true);
     try {
-      const res = await apiFetch<any[]>('/properties');
+      const res = await apiFetch<any[]>('/properties?includeSold=true');
       if (res.success && Array.isArray(res.data)) {
         setProperties(res.data.map(p => ({
           id: p.propertyCode || `PR-${p.id}`,
@@ -204,8 +204,10 @@ export function Properties() {
           <div className="segmented-tabs">
             <button className={statusFilter === 'All' ? 'active' : ''} onClick={() => setStatusFilter('All')}>All Properties</button>
             <button className={statusFilter === 'Available' ? 'active' : ''} onClick={() => setStatusFilter('Available')}>Available</button>
-            <button className={statusFilter === 'Under Offer' ? 'active' : ''} onClick={() => setStatusFilter('Under Offer')}>Under Offer</button>
+            <button className={statusFilter === 'Under Negotiation' ? 'active' : ''} onClick={() => setStatusFilter('Under Negotiation')}>Under Negotiation</button>
+            <button className={statusFilter === 'Token Done' ? 'active' : ''} onClick={() => setStatusFilter('Token Done')}>Token Done</button>
             <button className={statusFilter === 'Sold' ? 'active' : ''} onClick={() => setStatusFilter('Sold')}>Sold</button>
+            <button className={statusFilter === 'Rented' ? 'active' : ''} onClick={() => setStatusFilter('Rented')}>Rented</button>
           </div>
 
           <div style={{ display: 'flex', gap: 12 }}>
@@ -695,8 +697,10 @@ export function Properties() {
                     onChange={(e) => setSelectedPropertyForEdit({ ...selectedPropertyForEdit, status: e.target.value })}
                   >
                     <option value="Available">Available</option>
-                    <option value="Under Offer">Under Offer</option>
+                    <option value="Under Negotiation">Under Negotiation</option>
+                    <option value="Token Done">Token Done</option>
                     <option value="Sold">Sold</option>
+                    <option value="Rented">Rented</option>
                     <option value="Off-Market">Off-Market</option>
                   </select>
                 </div>

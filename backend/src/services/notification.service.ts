@@ -4,11 +4,49 @@ import { Notification } from '../models/notification.model';
 import { User } from '../models/user.model';
 import { WhatsAppService } from './whatsapp.service';
 
-// Safe initialization of Firebase Admin SDK for Cloud Functions and Local Environments
+import fs from 'fs';
+import path from 'path';
+
+// Safe initialization of Firebase Admin SDK using Service Account Key for VPS & Production
 if (!admin.apps.length) {
   try {
-    admin.initializeApp();
-    console.log('[NotificationService] Firebase Admin SDK initialized for FCM push messaging.');
+    const candidatePaths = [
+      process.env.FIREBASE_SERVICE_ACCOUNT_PATH,
+      path.resolve(process.cwd(), 'firebase-service-account.json'),
+      path.resolve(__dirname, '../../firebase-service-account.json'),
+      path.resolve(__dirname, '../firebase-service-account.json'),
+      '/var/www/propconnect/backend/firebase-service-account.json',
+    ].filter(Boolean) as string[];
+
+    let serviceAccountLoaded = false;
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          const sa = JSON.parse(fs.readFileSync(p, 'utf8'));
+          admin.initializeApp({
+            credential: admin.credential.cert(sa),
+          });
+          console.log(`[NotificationService] Firebase Admin SDK initialized with Service Account from: ${p}`);
+          serviceAccountLoaded = true;
+          break;
+        } catch (e: any) {
+          console.warn(`[NotificationService] Failed reading service account from ${p}:`, e.message);
+        }
+      }
+    }
+
+    if (!serviceAccountLoaded) {
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+        const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        admin.initializeApp({
+          credential: admin.credential.cert(sa),
+        });
+        console.log('[NotificationService] Firebase Admin SDK initialized with FIREBASE_SERVICE_ACCOUNT_KEY env');
+      } else {
+        admin.initializeApp();
+        console.log('[NotificationService] Firebase Admin SDK initialized with default credentials fallback.');
+      }
+    }
   } catch (err: any) {
     console.warn('[NotificationService] Firebase Admin initialization note:', err.message || err);
   }
@@ -19,7 +57,7 @@ export interface SendNotificationParams {
   agencyId?: number | null;
   title: string;
   message: string;
-  type?: 'collaboration' | 'deal' | 'commission' | 'subscription' | 'system';
+  type?: 'collaboration' | 'deal' | 'commission' | 'subscription' | 'system' | 'chat';
   actionRoute?: string;
   metadata?: Record<string, any>;
   channels?: string[]; // ['in_app', 'push', 'whatsapp']
@@ -30,30 +68,36 @@ export class NotificationService {
   /**
    * Primary method to create in-app notification in PostgreSQL and dispatch FCM push and WhatsApp
    */
-  public static async createAndSendNotification(params: SendNotificationParams): Promise<Notification> {
-    const totalCount = await Notification.count().catch(() => 0);
-    const notificationCode = `NTF-${100 + totalCount + 1}`;
-    const channelsList = params.channels && params.channels.length > 0 ? params.channels.join(',') : 'in_app,push';
+  public static async createAndSendNotification(params: SendNotificationParams): Promise<Notification | null> {
+    const channels = params.channels && params.channels.length > 0 ? params.channels : ['in_app', 'push'];
+    const channelsList = channels.join(',');
 
-    // 1. Create In-App Notification in PostgreSQL
-    const notif = await Notification.create({
-      notificationCode,
-      userId: params.userId,
-      agencyId: params.agencyId || null,
-      title: params.title,
-      message: params.message,
-      type: params.type || 'system',
-      actionRoute: params.actionRoute || null,
-      metadata: params.metadata || null,
-      isRead: false,
-      channels: channelsList,
-    });
+    let notif: Notification | null = null;
+
+    // 1. Create In-App Notification in PostgreSQL ONLY if 'in_app' channel requested
+    if (channels.includes('in_app')) {
+      const totalCount = await Notification.count().catch(() => 0);
+      const notificationCode = `NTF-${100 + totalCount + 1}`;
+
+      notif = await Notification.create({
+        notificationCode,
+        userId: params.userId,
+        agencyId: params.agencyId || null,
+        title: params.title,
+        message: params.message,
+        type: params.type || 'system',
+        actionRoute: params.actionRoute || null,
+        metadata: params.metadata || null,
+        isRead: false,
+        channels: channelsList,
+      });
+    }
 
     // 2. Lookup recipient user for FCM token and phone
     const recipient = await User.findByPk(params.userId).catch(() => null);
 
     // 3. Dispatch FCM Push Notification if recipient has an active FCM device token
-    if (recipient?.fcmToken && channelsList.includes('push')) {
+    if (recipient?.fcmToken && channels.includes('push')) {
       try {
         const unreadCount = await Notification.count({
           where: { userId: params.userId, isRead: false },
@@ -66,32 +110,49 @@ export class NotificationService {
             body: params.message,
           },
           data: {
-            notificationId: String(notif.id),
-            notificationCode: notif.notificationCode,
+            title: params.title,
+            body: params.message,
+            message: params.message,
+            notificationId: notif ? String(notif.id) : '',
+            notificationCode: notif ? notif.notificationCode : '',
             type: params.type || 'system',
             actionRoute: params.actionRoute || '',
+            click_action: 'FLUTTER_NOTIFICATION_CLICK',
             metadata: JSON.stringify(params.metadata || {}),
           },
           android: {
             priority: 'high',
             notification: {
+              title: params.title,
+              body: params.message,
               sound: 'default',
               channelId: 'propconnect_notifications',
+              priority: 'max',
+              visibility: 'public',
+              defaultSound: true,
+              defaultVibrateTimings: true,
             },
           },
           apns: {
             payload: {
               aps: {
+                alert: {
+                  title: params.title,
+                  body: params.message,
+                },
                 sound: 'default',
                 badge: unreadCount,
+                contentAvailable: true,
               },
             },
           },
         };
 
         const fcmRes = await admin.messaging().send(pushPayload);
-        notif.fcmMessageId = fcmRes;
-        await notif.save();
+        if (notif) {
+          notif.fcmMessageId = fcmRes;
+          await notif.save();
+        }
         console.log(`[FCM Push Sent] To User ${params.userId}, FCM Msg ID: ${fcmRes}`);
       } catch (fcmErr: any) {
         console.warn(`[FCM Push Error] User ${params.userId}:`, fcmErr.message || fcmErr);
@@ -136,21 +197,29 @@ export class NotificationService {
    */
   public static async getUserNotifications(params: {
     userId: number;
-    filter?: string; // 'all' | 'unread' | 'deal' | 'collaboration' | 'commission'
+    agencyId?: number;
+    filter?: string; // 'all' | 'unread' | 'deal' | 'collaboration' | 'commission' | 'chat' | 'system'
     limit?: number;
     offset?: number;
   }) {
-    const where: any = { userId: params.userId };
+    const orConditions: any[] = [{ userId: params.userId }];
+    if (params.agencyId && params.agencyId > 0) {
+      orConditions.push({ agencyId: params.agencyId, userId: null });
+    }
+    const where: any = orConditions.length > 1 ? { [Op.or]: orConditions } : { userId: params.userId };
 
     if (params.filter === 'unread') {
       where.isRead = false;
+      where.type = { [Op.ne]: 'chat' };
     } else if (params.filter && params.filter !== 'all') {
       where.type = params.filter;
+    } else {
+      where.type = { [Op.ne]: 'chat' };
     }
 
     const [total, unreadCount, notifications] = await Promise.all([
       Notification.count({ where }),
-      Notification.count({ where: { userId: params.userId, isRead: false } }),
+      Notification.count({ where: { ...where, isRead: false } }),
       Notification.findAll({
         where,
         order: [['createdAt', 'DESC']],

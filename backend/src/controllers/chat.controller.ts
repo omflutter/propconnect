@@ -3,6 +3,8 @@ import { Op } from 'sequelize';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { Message } from '../models/chat.model';
+import { User } from '../models/user.model';
+import { Agency } from '../models/agency.model';
 import { NotificationService } from '../services/notification.service';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
@@ -79,6 +81,22 @@ export const getConversations = async (req: Request, res: Response) => {
         const partnerName = data.senderId === userId ? data.receiverName : data.senderName;
         const partnerId = data.senderId === userId ? data.receiverId : data.senderId;
 
+        let chatType = 'direct';
+        let propertyId: string | null = null;
+        let dealId: string | null = null;
+
+        if (convId.includes('_deal_') || convId.startsWith('deal_')) {
+          chatType = 'deal';
+          const parts = convId.split('_deal_');
+          dealId = parts[1] || null;
+        } else {
+          const parts = convId.split('_');
+          if (convId.startsWith('prop_') || (parts.length >= 4 && parts[0] === 'conv')) {
+            chatType = 'property';
+            propertyId = parts.slice(3).join('_') || null;
+          }
+        }
+
         conversationMap.set(convId, {
           conversationId: convId,
           partnerId,
@@ -88,6 +106,9 @@ export const getConversations = async (req: Request, res: Response) => {
           lastMessageTime: data.createdAt,
           isUnread: !data.isRead && data.receiverId === userId,
           unreadCount: (!data.isRead && data.receiverId === userId) ? 1 : 0,
+          chatType,
+          propertyId,
+          dealId,
         });
       } else if (!data.isRead && data.receiverId === userId) {
         const existing = conversationMap.get(convId);
@@ -214,14 +235,106 @@ export const sendMessage = async (req: Request, res: Response) => {
         userId: parsedReceiverId,
         title: senderName || 'New Chat Message',
         message: messageText.trim(),
-        type: 'chat' as any,
-        actionRoute: `/chat`,
-        channels: ['in_app', 'push'],
+        type: 'chat',
+        actionRoute: `/chat/${conversationId}`,
+        metadata: {
+          conversationId,
+          senderId: String(senderId),
+          senderName: String(senderName),
+          receiverId: String(receiverId),
+        },
+        channels: ['push'],
       }).catch((err) => console.warn('[Chat Push Notification Error]', err));
     }
 
     return successResponse(res, 'Message sent successfully in PostgreSQL!', plainMsg, 201);
   } catch (error: any) {
     return errorResponse(res, 'Failed to send message', error.message || error);
+  }
+};
+
+/**
+ * Fetch all platform contacts grouped / searchable by agency for starting conversations.
+ * Includes both Agency Admins and Brokers across all agencies for agency-wise collaboration.
+ */
+export const getChatContacts = async (req: Request, res: Response) => {
+  try {
+    const { id: currentUserId } = resolveUserFromRequest(req);
+    const { search, agencyId } = req.query;
+
+    const whereClause: any = {
+      role: { [Op.in]: ['broker', 'agency_admin'] },
+      status: 'Active',
+    };
+
+    if (currentUserId) {
+      whereClause.id = { [Op.ne]: currentUserId };
+    }
+
+    if (agencyId && agencyId !== 'All') {
+      whereClause.agencyId = parseInt(String(agencyId), 10);
+    }
+
+    if (search) {
+      const q = String(search).trim();
+      whereClause[Op.or] = [
+        { name: { [Op.iLike]: `%${q}%` } },
+        { email: { [Op.iLike]: `%${q}%` } },
+        { phone: { [Op.iLike]: `%${q}%` } },
+      ];
+    }
+
+    const contacts = await User.findAll({
+      where: whereClause,
+      attributes: ['id', 'name', 'email', 'phone', 'avatarUrl', 'role', 'adminRoleTitle', 'agencyId'],
+      include: [
+        {
+          model: Agency,
+          as: 'agency',
+          attributes: ['id', 'name', 'agencyCode', 'location', 'reraNumber'],
+        },
+      ],
+      order: [
+        ['agencyId', 'ASC'],
+        ['role', 'ASC'], // agency_admin first, then broker
+        ['name', 'ASC'],
+      ],
+    });
+
+    return successResponse(res, 'Chat contacts retrieved successfully from PostgreSQL', contacts);
+  } catch (error: any) {
+    return errorResponse(res, 'Failed to fetch chat contacts', error.message || error);
+  }
+};
+
+/**
+ * Mark all messages in a conversation as read for a given user
+ */
+export const markConversationAsRead = async (req: Request, res: Response) => {
+  try {
+    const { conversationId } = req.params;
+    const { id: userId } = resolveUserFromRequest(req);
+    const targetUserId = userId || (req.body?.userId ? String(req.body.userId) : null) || (req.query?.userId ? String(req.query.userId) : null);
+
+    if (!conversationId) {
+      return errorResponse(res, 'Conversation ID is required', null, 400);
+    }
+
+    const whereClause: any = {
+      conversationId,
+      isRead: false,
+    };
+    if (targetUserId) {
+      whereClause.receiverId = targetUserId;
+    }
+
+    const [updatedCount] = await Message.update(
+      { isRead: true },
+      { where: whereClause }
+    );
+
+    return successResponse(res, `Marked ${updatedCount} messages as read`, { updatedCount });
+  } catch (error: any) {
+    return errorResponse(res, 'Failed to mark conversation as read', error.message || error);
   }
 };

@@ -37,8 +37,8 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final deals = ref.watch(dealProvider);
-    final properties = ref.watch(propertyProvider);
+    final deals = ref.watch(accessibleDealsProvider);
+    final properties = ref.watch(accessiblePropertiesProvider);
     final userData = AuthStorageService.getUserData();
     final currentUserId = userData?['id']?.toString() ?? '1';
     final currentAgencyId = userData?['agencyId']?.toString() ?? userData?['agency']?['id']?.toString() ?? '1';
@@ -173,8 +173,12 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                       separatorBuilder: (_, _) => const Gap(12),
                       itemBuilder: (context, index) {
                         final lead = filteredLeads[index];
-                        final isLeadOwner = lead.brokerAId?.toString() == currentUserId ||
-                            lead.agencyAId?.toString() == currentAgencyId;
+                        final isCollab = lead.agencyAId != null && lead.agencyBId != null && lead.agencyAId != lead.agencyBId;
+                        // PRD Section 10: Broker B owns the client in a collaboration deal
+                        final isLeadOwner = isCollab
+                            ? (lead.brokerBId?.toString() == currentUserId || lead.agencyBId?.toString() == currentAgencyId)
+                            : (lead.brokerAId?.toString() == currentUserId || lead.agencyAId?.toString() == currentAgencyId ||
+                               lead.brokerBId?.toString() == currentUserId || lead.agencyBId?.toString() == currentAgencyId);
                         return _buildLeadCard(lead, isLeadOwner);
                       },
                     ),

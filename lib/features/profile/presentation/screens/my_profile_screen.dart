@@ -8,7 +8,9 @@ import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/providers/agency_provider.dart';
 import 'package:propconnect/core/providers/user_role_provider.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
+import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/network/api_service.dart';
+import 'package:propconnect/core/routing/app_router.dart';
 
 class MyProfileScreen extends ConsumerStatefulWidget {
   const MyProfileScreen({super.key});
@@ -259,6 +261,13 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
             ? 'Super Admin (Full Access)'
             : (role == UserRole.agencyAdmin ? 'Agency Admin' : 'Broker / Agent'));
 
+    final userAgency = userData?['agency'] as Map<String, dynamic>?;
+    final userAgencyId = userData?['agencyId'] ?? userData?['agency_id'] ?? userAgency?['id'];
+    final userAgencyName = ((userAgency?['name'] ?? userData?['agencyName'] ?? agency.name) as String).trim().toLowerCase();
+    final hasAgency = userAgencyId != null ||
+        (userAgencyName.isNotEmpty && userAgencyName != 'my agency' && userAgencyName != 'no agency') ||
+        role == UserRole.agencyAdmin;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -458,59 +467,116 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                   _buildDetailRow('Agency Name', agency.name, Icons.storefront_outlined),
                   const Divider(height: 24),
                   _buildDetailRow('Account Status', 'Active & Verified', Icons.check_circle_outline, valueColor: Colors.teal),
-                  const Divider(height: 24),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFBFDBFE)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryBlue.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
+                  if (role == UserRole.agencyAdmin) ...[
+                    const Divider(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.business_outlined, color: AppColors.primaryBlue, size: 22),
                           ),
-                          child: const Icon(Icons.domain_add_rounded, color: AppColors.primaryBlue, size: 22),
-                        ),
-                        const Gap(12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Create / Register Agency',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Color(0xFF1E3A8A)),
+                          const Gap(12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Agency Management',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: AppColors.textPrimary),
+                                ),
+                                Gap(2),
+                                Text(
+                                  'Manage brokers, assigned properties, and team permissions',
+                                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (role == UserRole.agencyAdmin || (userData?['role'] as String?) == 'super_admin') ...[
+                            const Gap(8),
+                            OutlinedButton(
+                              onPressed: () => context.push('/agency-management'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primaryBlue,
+                                side: const BorderSide(color: AppColors.primaryBlue),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
-                              Gap(2),
-                              Text(
-                                'Register your brokerage firm to onboard brokers',
-                                style: TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
+                              child: const Text(
+                                'Manage',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                               ),
-                            ],
-                          ),
-                        ),
-                        const Gap(8),
-                        ElevatedButton(
-                          onPressed: () => context.push('/create-agency'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            'Register',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                  ),
+                  ] else if (!hasAgency && role != UserRole.broker) ...[
+                    const Divider(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryBlue.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.domain_add_rounded, color: AppColors.primaryBlue, size: 22),
+                          ),
+                          const Gap(12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Register Agency Profile',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Color(0xFF1E3A8A)),
+                                ),
+                                Gap(2),
+                                Text(
+                                  'Register your brokerage firm to onboard brokers',
+                                  style: TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Gap(8),
+                          ElevatedButton(
+                            onPressed: () => context.push('/create-agency'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Register',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -618,10 +684,13 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
               height: 50,
               child: ElevatedButton.icon(
                 onPressed: () async {
+                  try {
+                    await ApiService.post('/auth/logout', {}).timeout(const Duration(seconds: 1));
+                  } catch (_) {}
                   await AuthStorageService.clearSession();
-                  if (context.mounted) {
-                    context.go('/login');
-                  }
+                  ref.read(propertyProvider.notifier).reset();
+                  ref.read(dealProvider.notifier).reset();
+                  AppRouter.router.go(AppRouter.login);
                 },
                 icon: const Icon(Icons.logout, color: Colors.white, size: 18),
                 label: const Text('Log Out of Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),

@@ -270,6 +270,9 @@ class LocationHelper {
         // Take primary 2-3 segments (e.g. "Worli, Mumbai" instead of "Worli, Mumbai, Mumbai Suburban, Maharashtra, India")
         displayLoc = '${segments[0]}, ${segments[1]}';
       }
+      if (pincode.isNotEmpty && !displayLoc.contains(pincode)) {
+        displayLoc = '$displayLoc - $pincode';
+      }
     }
 
     // 5. Build Google Maps URL if coordinates exist or from query
@@ -516,5 +519,32 @@ class LocationHelper {
       debugPrint('Error reverse geocoding coordinates ($lat, $lon): $e');
     }
     return null;
+  }
+
+  /// Formats an Indian real estate address ensuring area, city, state, and 6-digit PIN code are properly placed.
+  static String formatFullAddress({
+    String address = '',
+    String area = '',
+    String city = '',
+    String state = '',
+    String pincode = '',
+  }) {
+    final parts = <String>[];
+    if (address.trim().isNotEmpty) parts.add(address.trim());
+    if (area.trim().isNotEmpty && !address.toLowerCase().contains(area.toLowerCase())) {
+      parts.add(area.trim());
+    }
+    if (city.trim().isNotEmpty && !address.toLowerCase().contains(city.toLowerCase())) {
+      parts.add(city.trim());
+    }
+    if (state.trim().isNotEmpty && !address.toLowerCase().contains(state.toLowerCase())) {
+      parts.add(state.trim());
+    }
+    var full = parts.join(', ');
+    final cleanPin = pincode.trim();
+    if (cleanPin.isNotEmpty && !full.contains(cleanPin)) {
+      full = full.isNotEmpty ? '$full - $cleanPin' : cleanPin;
+    }
+    return full;
   }
 }

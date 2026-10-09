@@ -42,6 +42,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
   late TextEditingController _cityCtrl;
   late TextEditingController _areaCtrl;
   late TextEditingController _addressCtrl;
+  late TextEditingController _pincodeCtrl;
   late TextEditingController _googleMapUrlCtrl;
 
   // 3. 99acres Pricing Engine & Confidential Targets
@@ -73,11 +74,23 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
   late TextEditingController _ownerAddressCtrl;
   late TextEditingController _internalNotesCtrl;
 
-  // 6. Visibility
+  // 6. Visibility & Status (PRD Sec 4.1.1)
   bool _isPublic = false;
+  String _status = 'Available';
+  final List<String> _propertyStatusOptions = [
+    'Available',
+    'Reserved',
+    'Under Negotiation',
+    'Token Done',
+    'Sold',
+    'Rented',
+  ];
 
-  // 7. Photo Gallery & Amenities
+  // 7. Media: Photos, Videos, Floor Plans, Documents (PRD Sec 4.1.1)
   List<String> _propertyImages = [];
+  late TextEditingController _videoUrlCtrl;
+  List<String> _floorPlans = [];
+  List<String> _documents = [];
   bool _isUploadingImages = false;
   final List<String> _availableAmenities = [
     'Gym', 'Swimming Pool', '24/7 Security', 'Play Area', 'Club House',
@@ -159,6 +172,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     _cityCtrl = TextEditingController(text: existingProp?.city ?? '');
     _areaCtrl = TextEditingController(text: existingProp?.area ?? '');
     _addressCtrl = TextEditingController(text: existingProp?.address ?? '');
+    _pincodeCtrl = TextEditingController(text: existingProp?.pincode ?? '');
     _googleMapUrlCtrl = TextEditingController(text: existingProp?.googleMapUrl ?? '');
 
     _areaSqftCtrl = TextEditingController(text: existingProp?.areaSqft.toString() ?? '1250.0');
@@ -208,6 +222,14 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     _maintenanceCtrl = TextEditingController(text: existingProp?.maintenanceCharges.replaceAll(RegExp(r'[^0-9]'), '') ?? '5000');
     _selectedAmenities = List.from(existingProp?.amenities ?? []);
     _propertyImages = List.from(existingProp?.images ?? []);
+
+    _status = existingProp?.status ?? 'Available';
+    if (!_propertyStatusOptions.contains(_status)) {
+      _propertyStatusOptions.add(_status);
+    }
+    _videoUrlCtrl = TextEditingController(text: existingProp?.videos.isNotEmpty == true ? existingProp!.videos.first : '');
+    _floorPlans = List.from(existingProp?.floorPlans ?? []);
+    _documents = List.from(existingProp?.documents ?? []);
   }
 
   @override
@@ -220,6 +242,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     _cityCtrl.dispose();
     _areaCtrl.dispose();
     _addressCtrl.dispose();
+    _pincodeCtrl.dispose();
     _googleMapUrlCtrl.dispose();
     _rawPriceCtrl.dispose();
     _negotiablePriceCtrl.dispose();
@@ -233,6 +256,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     _ownerAddressCtrl.dispose();
     _internalNotesCtrl.dispose();
     _maintenanceCtrl.dispose();
+    _videoUrlCtrl.dispose();
     super.dispose();
   }
 
@@ -301,6 +325,9 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
       }
       if (details.state.isNotEmpty) {
         _stateCtrl.text = details.state;
+      }
+      if (details.pincode.isNotEmpty) {
+        _pincodeCtrl.text = details.pincode;
       }
       if (details.area.isNotEmpty) {
         _areaCtrl.text = details.area;
@@ -904,6 +931,74 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
     );
   }
 
+  void _showAddMediaUrlModal(String title, String hint, Function(String) onAdd) {
+    final textCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            top: 24,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Gap(16),
+              TextField(
+                controller: textCtrl,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: hint,
+                  prefixIcon: const Icon(Icons.link, color: AppColors.iconColor),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const Gap(16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    final val = textCtrl.text.trim();
+                    if (val.isNotEmpty) {
+                      onAdd(val);
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text('Add Item', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showSelectOwnerModal() {
     final owners = ref.read(ownerProvider);
     String search = '';
@@ -1256,6 +1351,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
       final userAgencyId = userData?['agencyId'] ?? userAgency?['id'];
       final userAgencyName = (userAgency?['name'] as String?) ?? (userData?['agencyName'] as String?) ?? (userData?['name'] != null ? '${userData!['name']}\'s Agency' : 'Partner Agency');
       final userName = (userData?['name'] as String?) ?? 'Broker';
+      final currentUserId = userData?['id'];
 
       // Auto-generate title if empty
       String title = _titleCtrl.text.trim();
@@ -1285,14 +1381,16 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
         isPublic: _isPublic,
         agencyId: existingProp?.agencyId ?? (userAgencyId != null ? int.tryParse(userAgencyId.toString()) : null),
         agencyName: existingProp?.agencyName ?? userAgencyName,
-        propertyType: _propertyType,
-        status: existingProp?.status ?? 'Available',
+        brokerId: existingProp?.brokerId ?? (currentUserId != null ? int.tryParse(currentUserId.toString()) : null),
         brokerName: existingProp?.brokerName ?? userName,
+        propertyType: _propertyType,
+        status: _status,
         country: _countryCtrl.text.trim().isNotEmpty ? _countryCtrl.text.trim() : 'India',
         stateName: _stateCtrl.text.trim(),
         city: _cityCtrl.text.trim().isNotEmpty ? _cityCtrl.text.trim() : (_locationCtrl.text.split(',').length > 1 ? _locationCtrl.text.split(',').last.trim() : ''),
         area: _areaCtrl.text.trim().isNotEmpty ? _areaCtrl.text.trim() : _locationCtrl.text.split(',').first.trim(),
         address: _addressCtrl.text.trim(),
+        pincode: _pincodeCtrl.text.trim(),
         googleMapUrl: _googleMapUrlCtrl.text.trim(),
         bathrooms: _bathrooms,
         balcony: _balcony,
@@ -1304,6 +1402,9 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
         maintenanceCharges: maintenanceStr,
         amenities: _selectedAmenities,
         images: _propertyImages,
+        videos: _videoUrlCtrl.text.trim().isNotEmpty ? [_videoUrlCtrl.text.trim()] : (existingProp?.videos ?? []),
+        floorPlans: _floorPlans,
+        documents: _documents,
         ownerId: _selectedOwnerId,
         ownerName: _ownerNameCtrl.text.trim(),
         ownerPhonePrimary: _ownerPhonePrimaryCtrl.text.trim(),
@@ -1555,16 +1656,48 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                     ],
                   ),
                   const Gap(14),
-                  TextFormField(
-                    controller: _addressCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Street Address / Building Name',
-                      hintText: 'e.g. Tower B, Flat 1402, Oberoi Sky City',
-                      prefixIcon: const Icon(Icons.home_outlined, color: AppColors.iconColor, size: 20),
-                      filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 6,
+                        child: TextFormField(
+                          controller: _addressCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Street Address / Building Name',
+                            hintText: 'e.g. Tower B, Flat 1402, Oberoi Sky City',
+                            prefixIcon: const Icon(Icons.home_outlined, color: AppColors.iconColor, size: 20),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+                          ),
+                        ),
+                      ),
+                      const Gap(10),
+                      Expanded(
+                        flex: 4,
+                        child: TextFormField(
+                          controller: _pincodeCtrl,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          onChanged: (val) => setState(() {}),
+                          decoration: InputDecoration(
+                            counterText: '',
+                            labelText: 'PIN Code',
+                            hintText: 'e.g. 400050',
+                            helperText: _pincodeCtrl.text.isNotEmpty ? '6-digit PIN' : null,
+                            helperStyle: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w500, fontSize: 11),
+                            prefixIcon: const Icon(Icons.pin_drop_outlined, color: AppColors.iconColor, size: 20),
+                            suffixIcon: _pincodeCtrl.text.length == 6
+                                ? const Icon(Icons.check_circle, color: Color(0xFF059669), size: 16)
+                                : null,
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const Gap(14),
                   TextFormField(
@@ -1582,6 +1715,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                               if (rev.city.isNotEmpty) _cityCtrl.text = rev.city;
                               if (rev.state.isNotEmpty) _stateCtrl.text = rev.state;
                               if (rev.area.isNotEmpty && _areaCtrl.text.isEmpty) _areaCtrl.text = rev.area;
+                              if (rev.pincode.isNotEmpty) _pincodeCtrl.text = rev.pincode;
                             });
                             return;
                           }
@@ -1594,6 +1728,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                             if (parsed.city.isNotEmpty) _cityCtrl.text = parsed.city;
                             if (parsed.state.isNotEmpty) _stateCtrl.text = parsed.state;
                             if (parsed.area.isNotEmpty && _areaCtrl.text.isEmpty) _areaCtrl.text = parsed.area;
+                            if (parsed.pincode.isNotEmpty) _pincodeCtrl.text = parsed.pincode;
                           });
                         }
                       }
@@ -1620,6 +1755,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                                         if (rev.city.isNotEmpty) _cityCtrl.text = rev.city;
                                         if (rev.state.isNotEmpty) _stateCtrl.text = rev.state;
                                         if (rev.area.isNotEmpty) _areaCtrl.text = rev.area;
+                                        if (rev.pincode.isNotEmpty) _pincodeCtrl.text = rev.pincode;
                                       });
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
@@ -1636,6 +1772,7 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                                     if (parsed.city.isNotEmpty) _cityCtrl.text = parsed.city;
                                     if (parsed.state.isNotEmpty) _stateCtrl.text = parsed.state;
                                     if (parsed.area.isNotEmpty) _areaCtrl.text = parsed.area;
+                                    if (parsed.pincode.isNotEmpty) _pincodeCtrl.text = parsed.pincode;
                                   });
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
@@ -2233,6 +2370,135 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
                       );
                     }).toList(),
                   ),
+                  const Gap(24),
+                  const Divider(color: AppColors.border),
+                  const Gap(16),
+
+                  // Video Walkthrough
+                  const Row(
+                    children: [
+                      Icon(Icons.video_library_outlined, size: 18, color: AppColors.primaryBlue),
+                      Gap(8),
+                      Text('Video Walkthrough Link', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const Gap(8),
+                  TextFormField(
+                    controller: _videoUrlCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'https://youtube.com/watch?v=... or Drive video link',
+                      hintStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      prefixIcon: const Icon(Icons.play_circle_outline, color: AppColors.primaryBlue),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+
+                  const Gap(20),
+                  // Floor Plans
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.architecture_outlined, size: 18, color: AppColors.primaryBlue),
+                          const Gap(8),
+                          Text('Floor Plans (${_floorPlans.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add Plan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        onPressed: () => _showAddMediaUrlModal(
+                          'Add Floor Plan URL',
+                          'https://example.com/floorplan.jpg',
+                          (val) => setState(() => _floorPlans.add(val)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_floorPlans.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: const Text('No floor plans added. Tap + Add Plan to attach images or blueprints.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _floorPlans.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final plan = entry.value;
+                        return Chip(
+                          avatar: const Icon(Icons.architecture, size: 16, color: AppColors.primaryBlue),
+                          label: Text(plan.split('/').last.isEmpty ? 'Plan #${idx + 1}' : plan.split('/').last, style: const TextStyle(fontSize: 12)),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () => setState(() => _floorPlans.removeAt(idx)),
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          side: const BorderSide(color: AppColors.border),
+                        );
+                      }).toList(),
+                    ),
+
+                  const Gap(20),
+                  // Documents
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.description_outlined, size: 18, color: AppColors.primaryBlue),
+                          const Gap(8),
+                          Text('Legal & Technical Documents (${_documents.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add Doc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        onPressed: () => _showAddMediaUrlModal(
+                          'Add Document Link / Title',
+                          'RERA Approval / Title Deed / Blueprint URL',
+                          (val) => setState(() => _documents.add(val)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_documents.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: const Text('No documents attached. Tap + Add Doc to link approvals or deeds.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _documents.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final doc = entry.value;
+                        return Chip(
+                          avatar: const Icon(Icons.description, size: 16, color: Colors.teal),
+                          label: Text(doc.split('/').last.isEmpty ? 'Document #${idx + 1}' : doc.split('/').last, style: const TextStyle(fontSize: 12)),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () => setState(() => _documents.removeAt(idx)),
+                          backgroundColor: const Color(0xFFF0FDFA),
+                          side: const BorderSide(color: Color(0xFF99F6E4)),
+                        );
+                      }).toList(),
+                    ),
                 ],
               ),
             ),
@@ -2488,41 +2754,191 @@ class _AddEditPropertyScreenState extends ConsumerState<AddEditPropertyScreen> {
             ),
             const Gap(20),
 
-            // STEP 8: VISIBILITY & SHARING
+            // STEP 8: STATUS & NETWORK SHARING
             _buildSectionCard(
-              title: '8. Visibility & Network Sharing',
+              title: '8. Status & Network Sharing',
               icon: Icons.visibility_outlined,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Property Availability Status (PRD Milestone)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                  const Gap(8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _status,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                      prefixIcon: const Icon(Icons.flag_outlined, color: AppColors.primaryBlue),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    items: _propertyStatusOptions.map((st) => DropdownMenuItem(value: st, child: Text(st, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)))).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => _status = val);
+                    },
+                  ),
+                  const Gap(20),
+                  const Text(
+                    'Listing Visibility (Marketplace vs Private)',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+                  ),
+                  const Gap(8),
+                  // Option 1: Public Listing
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => setState(() => _isPublic = true),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _isPublic ? AppColors.primaryBlue.withValues(alpha: 0.05) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _isPublic ? AppColors.primaryBlue : AppColors.border,
+                          width: _isPublic ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Row(
                         children: [
-                          Text('Make Property ${_isPublic ? 'Public' : 'Private'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          const Gap(4),
-                          Text(
-                            _isPublic ? 'Visible to external brokers for collaboration requests.' : 'Only visible to internal brokers within your agency.',
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: _isPublic ? AppColors.primaryBlue.withValues(alpha: 0.12) : Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.public,
+                              color: _isPublic ? AppColors.primaryBlue : Colors.grey.shade600,
+                              size: 22,
+                            ),
+                          ),
+                          const Gap(12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Public Listing',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
+                                    ),
+                                    const Gap(6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.shade50,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.green.shade200),
+                                      ),
+                                      child: Text(
+                                        'Marketplace',
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Gap(3),
+                                const Text(
+                                  'Listed on Co-Broking Marketplace. External brokers can discover this property and send collaboration requests.',
+                                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.25),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: _isPublic ? AppColors.primaryBlue : Colors.grey.shade400,
+                                width: _isPublic ? 6 : 2,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    Switch(
-                      value: _isPublic,
-                      activeTrackColor: AppColors.primaryBlue.withValues(alpha: 0.5),
-                      activeThumbColor: AppColors.primaryBlue,
-                      onChanged: (v) => setState(() => _isPublic = v),
+                  ),
+                  const Gap(10),
+                  // Option 2: Private Listing
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => setState(() => _isPublic = false),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: !_isPublic ? Colors.amber.shade50.withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: !_isPublic ? Colors.amber.shade700 : AppColors.border,
+                          width: !_isPublic ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: !_isPublic ? Colors.amber.shade100 : Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.lock_outline,
+                              color: !_isPublic ? Colors.amber.shade900 : Colors.grey.shade600,
+                              size: 22,
+                            ),
+                          ),
+                          const Gap(12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Private Listing',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
+                                    ),
+                                    const Gap(6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade100,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.amber.shade300),
+                                      ),
+                                      child: Text(
+                                        'Agency Only',
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Gap(3),
+                                const Text(
+                                  'Internal to your agency only. Hidden from the public co-broking marketplace.',
+                                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.25),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: !_isPublic ? Colors.amber.shade800 : Colors.grey.shade400,
+                                width: !_isPublic ? 6 : 2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             const Gap(32),

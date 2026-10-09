@@ -16,6 +16,11 @@ export class Agency extends Model {
   declare public propertiesCount: number;
   declare public dealsCount: number;
   declare public status: 'Active' | 'Pending' | 'Suspended';
+  declare public referralCode: string | null;
+  declare public coinsBalance: number;
+  declare public referredByAgencyId: number | null;
+  declare public referralCount: number;
+  declare public pincode: string | null;
   declare public readonly createdAt: Date;
   declare public readonly updatedAt: Date;
 }
@@ -80,6 +85,27 @@ Agency.init(
     status: {
       type: DataTypes.STRING(32),
       defaultValue: 'Active',
+    },
+    referralCode: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      unique: true,
+    },
+    coinsBalance: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    referredByAgencyId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    referralCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    pincode: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
     },
   },
   {

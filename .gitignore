@@ -5,6 +5,9 @@
 *.swp
 .DS_Store
 .firebase/
+*service-account*.json
+*.pem
+*.key
 .atom/
 .build/
 .buildlog/

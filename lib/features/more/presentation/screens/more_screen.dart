@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gap/gap.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
+import 'package:propconnect/core/network/api_service.dart';
+import 'package:propconnect/core/providers/user_role_provider.dart';
+import 'package:propconnect/core/routing/app_router.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 
 class MoreScreen extends StatelessWidget {
@@ -10,13 +13,13 @@ class MoreScreen extends StatelessWidget {
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Logout'),
         content: const Text('Are you sure you want to log out of your account?'),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogCtx, rootNavigator: true).pop(),
             child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
@@ -25,11 +28,12 @@ class MoreScreen extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () async {
-              Navigator.pop(context); // close dialog
+              Navigator.of(dialogCtx, rootNavigator: true).pop(); // close dialog
+              try {
+                await ApiService.post('/auth/logout', {}).timeout(const Duration(seconds: 1));
+              } catch (_) {}
               await AuthStorageService.clearSession(); // clear persistent session
-              if (context.mounted) {
-                context.go('/login'); // navigate to login
-              }
+              AppRouter.router.go(AppRouter.login); // navigate to login
             },
             child: const Text('Logout', style: TextStyle(color: Colors.white)),
           ),
@@ -43,6 +47,15 @@ class MoreScreen extends StatelessWidget {
     final userData = AuthStorageService.getUserData();
     final name = (userData?['name'] as String?) ?? 'Agency Admin';
     final email = (userData?['email'] as String?) ?? 'om@propconnect.in';
+    final userRole = AuthStorageService.getUserRole();
+    final rawRole = (userData?['role'] as String?)?.toLowerCase();
+    final isSuperAdmin = rawRole == 'super_admin';
+    final isAgencyAdmin = userRole == UserRole.agencyAdmin || isSuperAdmin;
+    final userAgency = userData?['agency'] as Map<String, dynamic>?;
+    final userAgencyId = userData?['agencyId'] ?? userData?['agency_id'] ?? userAgency?['id'];
+    final userAgencyName = ((userAgency?['name'] ?? userData?['agencyName'] ?? '') as String).trim().toLowerCase();
+    final hasAgency = userAgencyId != null ||
+        (userAgencyName.isNotEmpty && userAgencyName != 'my agency' && userAgencyName != 'no agency');
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -65,11 +78,19 @@ class MoreScreen extends StatelessWidget {
           Text(email, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
           const Gap(32),
           _buildMenuItem(Icons.person_outline, 'Profile Settings', onTap: () => context.push('/profile')),
-          _buildMenuItem(Icons.domain_add_outlined, 'Register Agency Profile', onTap: () => context.push('/create-agency')),
-          _buildMenuItem(Icons.business_outlined, 'Agency Management', onTap: () => context.push('/agency-management')),
-          _buildMenuItem(Icons.people_alt_outlined, 'Property Owners & Settings', onTap: () => context.push('/owners')),
-          _buildMenuItem(Icons.subscriptions_outlined, 'Subscription & Billing', onTap: () => context.push('/subscription')),
-          _buildMenuItem(Icons.analytics_outlined, 'Reports & Analytics', onTap: () => context.push('/analytics')),
+          _buildMenuItem(Icons.account_balance_wallet_outlined, 'Settlements & Invoicing', onTap: () => context.push('/settlements')),
+          _buildMenuItem(Icons.card_giftcard_rounded, 'Refer & Earn (PropCoins)', onTap: () => context.push('/referral')),
+          if (!hasAgency && userRole != UserRole.broker)
+            _buildMenuItem(Icons.domain_add_outlined, 'Register Agency Profile', onTap: () => context.push('/create-agency')),
+          if (isAgencyAdmin && hasAgency)
+            _buildMenuItem(Icons.business_outlined, 'Agency Management', onTap: () => context.push('/agency-management')),
+          if (isAgencyAdmin)
+            _buildMenuItem(Icons.people_alt_outlined, 'Property Owners & Settings', onTap: () => context.push('/owners')),
+          if (isAgencyAdmin)
+            _buildMenuItem(Icons.subscriptions_outlined, 'Subscription & Billing', onTap: () => context.push('/subscription')),
+          if (isAgencyAdmin)
+            _buildMenuItem(Icons.analytics_outlined, 'Reports & Analytics', onTap: () => context.push('/analytics')),
+          _buildMenuItem(Icons.settings_outlined, 'App Settings & Security', onTap: () => context.push('/settings')),
           const Divider(height: 32),
           _buildMenuItem(Icons.help_outline, 'Help & Support', onTap: () => context.push('/support')),
           _buildMenuItem(Icons.logout, 'Logout', color: Colors.red, onTap: () => _showLogoutDialog(context)),

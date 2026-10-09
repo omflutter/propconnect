@@ -4,9 +4,11 @@ import jwt from 'jsonwebtoken';
 import { Op } from 'sequelize';
 import { Agency } from '../models/agency.model';
 import { User } from '../models/user.model';
+import { Referral } from '../models/referral.model';
 import { env } from '../config/env';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { AuditService } from '../services/audit.service';
+import { NotificationService } from '../services/notification.service';
 
 /**
  * Onboard / Register a New Agency (From App or Super Admin Panel) - 100% PostgreSQL
@@ -30,16 +32,24 @@ export const createAgency = async (req: Request, res: Response) => {
       return errorResponse(res, 'Agency Name is required', null, 400);
     }
 
-    // Determine calling user from JWT header if present
+    // Check if this is a public user/agency registration
+    const isPublicRegistration =
+      req.originalUrl?.includes('/auth/register') ||
+      req.path?.includes('/register') ||
+      req.originalUrl?.includes('/create-profile');
+
+    // Determine calling user from JWT header if present (only for authenticated routes, NOT registration)
     let authenticatedUserId: number | null = null;
     let authenticatedUserEmail: string | null = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const decoded = jwt.verify(authHeader.split(' ')[1], env.JWT_SECRET) as any;
-        authenticatedUserId = decoded.id;
-        authenticatedUserEmail = decoded.email;
-      } catch (_) {}
+    if (!isPublicRegistration) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const decoded = jwt.verify(authHeader.split(' ')[1], env.JWT_SECRET) as any;
+          authenticatedUserId = decoded.id;
+          authenticatedUserEmail = decoded.email;
+        } catch (_) {}
+      }
     }
 
     const cleanEmail = (adminEmail && adminEmail.trim())
@@ -50,24 +60,62 @@ export const createAgency = async (req: Request, res: Response) => {
       return errorResponse(res, 'Admin / Agency contact email is required', null, 400);
     }
 
-    // Check if an existing user is creating this agency
-    let existingUser: User | null = null;
-    if (authenticatedUserId) {
-      existingUser = await User.findByPk(authenticatedUserId);
+    // If this is a registration, enforce strict email uniqueness across all platform users
+    if (isPublicRegistration) {
+      const emailInUse = await User.findOne({ where: { email: cleanEmail } });
+      if (emailInUse) {
+        return errorResponse(
+          res,
+          `An account with email "${cleanEmail}" already exists. Please log in or use a different email.`,
+          null,
+          400
+        );
+      }
     }
-    if (!existingUser) {
-      existingUser = await User.findOne({ where: { email: cleanEmail } });
+
+    // Check if an existing authenticated user is explicitly creating this agency (non-registration flow)
+    let existingUser: User | null = null;
+    if (authenticatedUserId && !isPublicRegistration) {
+      existingUser = await User.findByPk(authenticatedUserId);
     }
 
     const totalAgencies = await Agency.count();
     const agencyCode = `AG-${String(totalAgencies + 1).padStart(3, '0')}`;
 
+    const incomingRefCode = (req.body.referralCode || req.body.referredByCode || '').toString().trim().toUpperCase();
+    let referringAgency: Agency | null = null;
+    let initialCoins = 100; // Default starter bonus for new agencies
+    let referredById: number | null = null;
+
+    if (incomingRefCode) {
+      referringAgency = await Agency.findOne({
+        where: {
+          [Op.or]: [
+            { referralCode: incomingRefCode },
+            { agencyCode: incomingRefCode },
+            { referralCode: incomingRefCode.replace('PROP-', '') },
+            { agencyCode: incomingRefCode.replace('PROP-', '') },
+          ],
+        },
+      });
+
+      if (referringAgency) {
+        referredById = referringAgency.id;
+        initialCoins = 500; // Boosted 500 PropCoins welcome bonus for joining via referral
+      }
+    }
+
     const agency = await Agency.create({
       agencyCode,
+      referralCode: agencyCode,
+      coinsBalance: initialCoins,
+      referredByAgencyId: referredById,
+      referralCount: 0,
       name: name.trim(),
       reraNumber: (reraNumber && reraNumber.trim()) ? reraNumber.trim() : '',
       location: (location && location.trim()) ? location.trim() : 'Mumbai',
       address: (address && address.trim()) ? address.trim() : '',
+      pincode: (req.body.pincode && String(req.body.pincode).trim()) ? String(req.body.pincode).trim() : '',
       adminName: (adminName && adminName.trim()) ? adminName.trim() : (existingUser?.name || 'Agency Admin'),
       adminEmail: cleanEmail,
       adminPhone: (adminPhone && adminPhone.trim()) ? adminPhone.trim() : (existingUser?.phone || ''),
@@ -78,6 +126,33 @@ export const createAgency = async (req: Request, res: Response) => {
       status: 'Active',
     });
 
+    // Award referrer agency 1,000 PropCoins
+    if (referringAgency) {
+      try {
+        referringAgency.coinsBalance = (referringAgency.coinsBalance || 0) + 1000;
+        referringAgency.referralCount = (referringAgency.referralCount || 0) + 1;
+        await referringAgency.save();
+
+        await Referral.create({
+          referrerAgencyId: referringAgency.id,
+          referredAgencyId: agency.id,
+          referralCode: incomingRefCode,
+          coinsEarned: 1000,
+          status: 'Completed',
+        });
+
+        NotificationService.createAndSendNotification({
+          userId: referringAgency.id,
+          agencyId: referringAgency.id,
+          title: '🎉 1,000 PropCoins Credited!',
+          message: `Agency "${agency.name}" joined using your referral code (${incomingRefCode}). 1,000 PropCoins added to your balance!`,
+          type: 'subscription',
+        }).catch(() => {});
+      } catch (refErr) {
+        console.warn('[Referral Reward Note]', refErr);
+      }
+    }
+
     // PRD Sec 18: Record Audit Log for Subscription Purchased on Agency Onboard
     AuditService.logAction({
       action: 'Subscription Purchased',
@@ -85,7 +160,7 @@ export const createAgency = async (req: Request, res: Response) => {
       req,
       actorName: agency.adminName,
       actorRole: 'Agency Admin',
-      details: { agencyId: agency.id, tier: agency.subscriptionTier, quota: agency.userQuota },
+      details: { agencyId: agency.id, tier: agency.subscriptionTier, quota: agency.userQuota, referralCode: incomingRefCode || null },
     }).catch(() => {});
 
     if (existingUser) {
@@ -290,6 +365,7 @@ export const updateAgency = async (req: Request, res: Response) => {
     if (req.body.reraNumber !== undefined) agency.reraNumber = req.body.reraNumber;
     if (req.body.location) agency.location = req.body.location;
     if (req.body.address !== undefined) agency.address = req.body.address;
+    if (req.body.pincode !== undefined) agency.pincode = req.body.pincode;
     if (req.body.adminName) agency.adminName = req.body.adminName;
     if (req.body.adminEmail) agency.adminEmail = req.body.adminEmail;
     if (req.body.adminPhone !== undefined) agency.adminPhone = req.body.adminPhone;
@@ -361,3 +437,120 @@ export const deleteAgency = async (req: Request, res: Response) => {
     return errorResponse(res, 'Failed to delete agency', error.message || error);
   }
 };
+
+/**
+ * Fetch Agency Referral Stats, PropCoins Balance & History - 100% PostgreSQL
+ */
+export const getAgencyReferralStats = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const agency = await Agency.findByPk(id);
+    if (!agency) {
+      return errorResponse(res, 'Agency not found', null, 404);
+    }
+
+    const referralCode = agency.referralCode || agency.agencyCode;
+    const coinsBalance = agency.coinsBalance || 0;
+    const referralCount = agency.referralCount || 0;
+
+    // Fetch referred agencies details
+    const referrals = await Referral.findAll({
+      where: { referrerAgencyId: agency.id },
+      order: [['createdAt', 'DESC']],
+    });
+
+    const referredAgencyIds = referrals.map((r) => r.referredAgencyId);
+    let agencyMap = new Map<number, any>();
+    if (referredAgencyIds.length > 0) {
+      const referredAgencies = await Agency.findAll({
+        where: { id: { [Op.in]: referredAgencyIds } },
+        attributes: ['id', 'agencyCode', 'name', 'location', 'createdAt', 'status'],
+      });
+      agencyMap = new Map(referredAgencies.map((a) => [a.id, a]));
+    }
+
+    const history = referrals.map((r) => {
+      const refAgency = agencyMap.get(r.referredAgencyId);
+      return {
+        id: r.id,
+        referredAgencyId: r.referredAgencyId,
+        referredAgencyName: refAgency ? refAgency.name : 'Partner Agency',
+        referredAgencyCode: refAgency ? refAgency.agencyCode : '',
+        coinsEarned: r.coinsEarned,
+        status: r.status,
+        createdAt: r.createdAt,
+      };
+    });
+
+    return successResponse(res, 'Referral stats fetched successfully', {
+      referralCode,
+      coinsBalance,
+      referralCount,
+      coinValueInr: 1, // 1 PropCoin = ₹1 INR
+      referrals: history,
+    });
+  } catch (err: any) {
+    return errorResponse(res, 'Failed to fetch referral stats', err.message || err);
+  }
+};
+
+/**
+ * Redeem PropCoins for Membership / SaaS Subscription - 100% PostgreSQL
+ */
+export const redeemAgencyCoins = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { coinsToRedeem, targetTier } = req.body;
+
+    const agency = await Agency.findByPk(id);
+    if (!agency) {
+      return errorResponse(res, 'Agency not found', null, 404);
+    }
+
+    const currentBalance = agency.coinsBalance || 0;
+    const coins = parseInt(String(coinsToRedeem || 0), 10);
+
+    if (isNaN(coins) || coins <= 0) {
+      return errorResponse(res, 'Invalid coins amount to redeem', null, 400);
+    }
+
+    if (coins > currentBalance) {
+      return errorResponse(
+        res,
+        `Insufficient coins. Available balance is ${currentBalance} PropCoins.`,
+        null,
+        400
+      );
+    }
+
+    agency.coinsBalance = currentBalance - coins;
+    if (targetTier) {
+      agency.subscriptionTier = targetTier;
+    }
+    await agency.save();
+
+    AuditService.logAction({
+      action: 'Coins Redeemed for Subscription',
+      target: `Agency ${agency.name} redeemed ${coins} PropCoins`,
+      req,
+      actorName: agency.adminName,
+      actorRole: 'Agency Admin',
+      details: {
+        agencyId: agency.id,
+        coinsRedeemed: coins,
+        targetTier: targetTier || agency.subscriptionTier,
+        remainingBalance: agency.coinsBalance,
+      },
+    }).catch(() => {});
+
+    return successResponse(res, `Successfully redeemed ${coins} PropCoins for membership upgrade!`, {
+      agencyId: agency.id,
+      coinsRedeemed: coins,
+      remainingCoins: agency.coinsBalance,
+      subscriptionTier: agency.subscriptionTier,
+    });
+  } catch (err: any) {
+    return errorResponse(res, 'Failed to redeem coins', err.message || err);
+  }
+};
+

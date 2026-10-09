@@ -6,6 +6,8 @@ import {
   updateAgency,
   updateAgencyStatus,
   deleteAgency,
+  getAgencyReferralStats,
+  redeemAgencyCoins,
 } from '../controllers/agency.controller';
 
 const router = Router();
@@ -195,5 +197,7 @@ router.delete('/agencies/:id', deleteAgency);
  *         description: Agency status updated.
  */
 router.patch('/agencies/:id/status', updateAgencyStatus);
+router.get('/agencies/:id/referral', getAgencyReferralStats);
+router.post('/agencies/:id/redeem-coins', redeemAgencyCoins);
 
 export default router;

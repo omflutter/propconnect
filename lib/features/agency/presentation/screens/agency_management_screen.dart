@@ -8,6 +8,8 @@ import 'package:propconnect/core/models/agency_model.dart';
 import 'package:propconnect/core/providers/agency_provider.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/network/api_service.dart';
+import 'package:propconnect/core/providers/user_role_provider.dart';
+import 'package:propconnect/core/providers/data_providers.dart';
 
 class AgencyManagementScreen extends ConsumerStatefulWidget {
   const AgencyManagementScreen({super.key});
@@ -24,6 +26,7 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(propertyProvider.notifier).fetchProperties();
       _fetchLiveBrokersFromBackend();
     });
   }
@@ -63,6 +66,14 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
           final roleStr = m['role'] == 'agency_admin' ? 'Agency Admin' : 'Broker / Agent';
           final isAct = m['status'] == 'Active';
 
+          final rawAssigned = m['assignedPropertyIds'] ?? (m['permissions'] is Map ? m['permissions']['assignedPropertyIds'] : null);
+          final assignedList = <String>[];
+          if (rawAssigned is List) {
+            for (final p in rawAssigned) {
+              if (p != null) assignedList.add(p.toString());
+            }
+          }
+
           return BrokerModel(
             id: m['id']?.toString() ?? 'b0',
             name: m['name']?.toString() ?? 'Broker',
@@ -70,6 +81,7 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
             phone: m['phone']?.toString() ?? '',
             role: roleStr,
             isActive: isAct,
+            assignedPropertyIds: assignedList,
           );
         }).toList();
 
@@ -101,9 +113,32 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
     String selectedRole = broker?.role ?? 'Broker / Agent';
     bool isSaving = false;
 
+    final selectedPropertyIds = Set<String>.from(broker?.assignedPropertyIds ?? []);
+
     final userData = AuthStorageService.getUserData();
     final userAgency = userData?['agency'] as Map<String, dynamic>?;
     final userAgencyId = userData?['agencyId'] ?? userData?['agency_id'] ?? userAgency?['id'];
+    final userAgencyName = ((userAgency?['name'] ?? userData?['agencyName'] ?? userData?['agency_name'] ?? '') as String).trim().toLowerCase();
+    final currentUserId = userData?['id']?.toString() ?? '';
+    final currentUserName = (userData?['name']?.toString() ?? '').trim().toLowerCase();
+
+    // Only allow admin to assign access to their own / agency's properties
+    final allProperties = ref.read(propertyProvider);
+    final properties = allProperties.where((p) {
+      if (userAgencyId != null && p.agencyId != null && p.agencyId.toString() == userAgencyId.toString()) {
+        return true;
+      }
+      if (userAgencyName.isNotEmpty && p.agencyName.trim().toLowerCase() == userAgencyName) {
+        return true;
+      }
+      if (currentUserId.isNotEmpty && p.brokerId != null && p.brokerId.toString() == currentUserId) {
+        return true;
+      }
+      if (currentUserName.isNotEmpty && p.brokerName.trim().toLowerCase() == currentUserName) {
+        return true;
+      }
+      return false;
+    }).toList();
 
     showModalBottomSheet(
       context: context,
@@ -181,7 +216,97 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
                         if (val != null) setModalState(() => selectedRole = val);
                       },
                     ),
-                    const Gap(32),
+                    const Gap(20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Assign Properties Access',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        ),
+                        if (properties.isNotEmpty)
+                          TextButton(
+                            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 30)),
+                            onPressed: () {
+                              setModalState(() {
+                                if (selectedPropertyIds.length == properties.length) {
+                                  selectedPropertyIds.clear();
+                                } else {
+                                  selectedPropertyIds.addAll(properties.map((p) => p.id));
+                                }
+                              });
+                            },
+                            child: Text(
+                              selectedPropertyIds.length == properties.length ? 'Deselect All' : 'Select All',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlue),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const Text(
+                      'Admin can assign access only to properties listed by this agency. This broker will only view and manage deals for assigned properties.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const Gap(8),
+                    if (properties.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Text(
+                          'No properties listed under your agency yet. Add your agency properties first to assign access.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      )
+                    else
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 220),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: properties.length,
+                          separatorBuilder: (ctx, i) => Divider(height: 1, color: Colors.grey.shade200),
+                          itemBuilder: (ctx, i) {
+                            final prop = properties[i];
+                            final isChecked = selectedPropertyIds.contains(prop.id);
+                            return CheckboxListTile(
+                              dense: true,
+                              value: isChecked,
+                              activeColor: AppColors.primaryBlue,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                              title: Text(
+                                prop.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: Text(
+                                '${prop.bhk} • ₹${prop.price} • ${prop.location}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              ),
+                              onChanged: (bool? val) {
+                                setModalState(() {
+                                  if (val == true) {
+                                    selectedPropertyIds.add(prop.id);
+                                  } else {
+                                    selectedPropertyIds.remove(prop.id);
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    const Gap(24),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -200,6 +325,7 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
                                 final navigator = Navigator.of(context);
 
                                 final backendRole = selectedRole == 'Agency Admin' ? 'agency_admin' : 'broker';
+                                final assignedIds = selectedPropertyIds.toList();
                                 
                                 if (isEditing) {
                                   // Update existing broker via PUT /brokers/:id
@@ -208,6 +334,7 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
                                     'email': emailCtrl.text.trim(),
                                     'phone': phoneCtrl.text.trim(),
                                     'role': backendRole,
+                                    'assignedPropertyIds': assignedIds,
                                   });
 
                                   if (res['success'] == true) {
@@ -217,6 +344,7 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
                                           emailCtrl.text.trim(),
                                           phoneCtrl.text.trim(),
                                           selectedRole,
+                                          assignedPropertyIds: assignedIds,
                                         );
 
                                     navigator.pop();
@@ -249,6 +377,7 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
                                     'phone': phoneCtrl.text.trim(),
                                     'role': backendRole,
                                     'password': chosenPassword,
+                                    'assignedPropertyIds': assignedIds,
                                   };
                                   if (parsedAgencyId != null) {
                                     payload['agencyId'] = parsedAgencyId;
@@ -264,6 +393,7 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
                                           phoneCtrl.text.trim(),
                                           selectedRole,
                                           id: created?['id']?.toString(),
+                                          assignedPropertyIds: assignedIds,
                                         );
 
                                     navigator.pop();
@@ -505,6 +635,48 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
 
   @override
   Widget build(BuildContext context) {
+    final userRole = AuthStorageService.getUserRole();
+    final userData = AuthStorageService.getUserData();
+    final isSuperAdmin = (userData?['role'] as String?)?.toLowerCase() == 'super_admin';
+    if (userRole == UserRole.broker && !isSuperAdmin) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(title: const Text('Access Restricted')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.shield_outlined, size: 64, color: Colors.redAccent),
+                const Gap(16),
+                const Text(
+                  'Access Restricted',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const Gap(8),
+                const Text(
+                  'Agency & Team Management is only accessible to Agency Administrators and Owners. Please contact your agency admin for team settings.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
+                const Gap(24),
+                ElevatedButton.icon(
+                  onPressed: () => context.go('/home'),
+                  icon: const Icon(Icons.home, color: Colors.white),
+                  label: const Text('Return to Home', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final agency = ref.watch(agencyProvider);
     final activeBrokers = agency.brokers.where((b) => b.isActive).toList();
     final deactivatedBrokers = agency.brokers.where((b) => !b.isActive).toList();
@@ -516,11 +688,6 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
       appBar: AppBar(
         title: const Text('Agency & Broker Team'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.domain_add_rounded, color: AppColors.primaryBlue),
-            onPressed: () => context.push('/create-agency'),
-            tooltip: 'Register new agency profile',
-          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
             onPressed: _fetchLiveBrokersFromBackend,
@@ -695,10 +862,10 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => context.push('/create-agency'),
-                  icon: const Icon(Icons.add_business_rounded, size: 16, color: AppColors.primaryBlue),
+                  onPressed: () => _showBrokerDialog(),
+                  icon: const Icon(Icons.person_add_alt_1, size: 16, color: AppColors.primaryBlue),
                   label: const Text(
-                    'Register New Agency Profile',
+                    'Onboard New Broker to Agency',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -741,7 +908,30 @@ class _AgencyManagementScreenState extends ConsumerState<AgencyManagementScreen>
               child: Text(broker.name.isNotEmpty ? broker.name.substring(0, 1).toUpperCase() : 'U', style: TextStyle(color: isAdmin ? AppColors.primaryBlue : AppColors.textPrimary, fontWeight: FontWeight.bold)),
             ),
             title: Text(broker.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            subtitle: Text('${broker.role} • ${broker.email.isNotEmpty ? broker.email : broker.phone}', style: const TextStyle(fontSize: 12)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${broker.role} • ${broker.email.isNotEmpty ? broker.email : broker.phone}', style: const TextStyle(fontSize: 12)),
+                const Gap(3),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isAdmin ? const Color(0xFFEFF6FF) : const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    isAdmin
+                        ? 'All Agency Properties'
+                        : '${broker.assignedPropertyIds.length} Assigned Properties',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: isAdmin ? AppColors.primaryBlue : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             trailing: PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               onSelected: (value) async {

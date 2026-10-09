@@ -10,7 +10,7 @@ export class Notification extends Model {
   declare public agencyId: number | null;
   declare public title: string;
   declare public message: string;
-  declare public type: 'collaboration' | 'deal' | 'commission' | 'subscription' | 'system';
+  declare public type: 'collaboration' | 'deal' | 'commission' | 'subscription' | 'system' | 'chat';
   declare public actionRoute: string | null;
   declare public metadata: Record<string, any> | null;
   declare public isRead: boolean;
@@ -57,7 +57,7 @@ Notification.init(
       allowNull: false,
     },
     type: {
-      type: DataTypes.ENUM('collaboration', 'deal', 'commission', 'subscription', 'system'),
+      type: DataTypes.ENUM('collaboration', 'deal', 'commission', 'subscription', 'system', 'chat'),
       defaultValue: 'system',
     },
     actionRoute: {

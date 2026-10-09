@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:propconnect/core/models/deal_model.dart';
 
 class PropertyModel {
   final String id;
@@ -17,6 +18,7 @@ class PropertyModel {
   final String agencyName;
   final String propertyType;
   final String status;
+  final int? brokerId;
   final String brokerName;
   
   // PRD Address & Geo Specifications
@@ -25,6 +27,7 @@ class PropertyModel {
   final String city;
   final String area;
   final String address;
+  final String pincode;
   final String googleMapUrl;
 
   // PRD Area Specifications
@@ -41,6 +44,7 @@ class PropertyModel {
   final String maintenanceCharges;
   final List<String> amenities;
   final List<String> images;
+  final List<String> videos;
   final List<String> floorPlans;
   final List<String> documents;
 
@@ -70,12 +74,14 @@ class PropertyModel {
     required this.agencyName,
     required this.propertyType,
     required this.status,
+    this.brokerId,
     required this.brokerName,
     this.country = 'India',
     this.stateName = 'Maharashtra',
     this.city = 'Mumbai',
     this.area = '',
     this.address = '',
+    this.pincode = '',
     this.googleMapUrl = '',
     required this.areaSqft,
     this.carpetArea = 0.0,
@@ -88,6 +94,7 @@ class PropertyModel {
     required this.maintenanceCharges,
     required this.amenities,
     required this.images,
+    this.videos = const [],
     this.floorPlans = const [],
     this.documents = const [],
     this.ownerId,
@@ -107,6 +114,8 @@ class PropertyModel {
     if (propertyAge <= 0) return 'Brand New / Ready';
     return '$propertyAge Year${propertyAge > 1 ? 's' : ''} Old';
   }
+
+  double get numericPrice => DealModel.parsePriceToNumeric(price);
 
   static int _parseInt(dynamic val, [int fallback = 0]) {
     if (val == null) return fallback;
@@ -212,6 +221,13 @@ class PropertyModel {
         bhk: _parseString(json['bhk'], '2 BHK'),
         type: _parseString(json['type'], 'Sale'),
         purpose: _parseString(json['purpose'] ?? json['type'], 'Sale'),
+        brokerId: json['brokerId'] != null
+            ? _parseInt(json['brokerId'])
+            : (json['broker'] is Map && json['broker']['id'] != null
+                ? _parseInt(json['broker']['id'])
+                : (json['createdBy'] != null
+                    ? _parseInt(json['createdBy'])
+                    : (json['userId'] != null ? _parseInt(json['userId']) : null))),
         brokerName: _parseString(json['brokerName'], ''),
         agencyId: parsedAgencyId,
         agencyName: parsedAgencyName,
@@ -223,6 +239,7 @@ class PropertyModel {
         city: _parseString(json['city'], ''),
         area: _parseString(json['area'], ''),
         address: _parseString(json['address'], ''),
+        pincode: _parseString(json['pincode'] ?? json['pinCode'], ''),
         googleMapUrl: _parseString(json['googleMapUrl'], ''),
         areaSqft: parsedArea,
         carpetArea: parsedCarpet,
@@ -235,6 +252,7 @@ class PropertyModel {
         maintenanceCharges: _parseString(json['maintenanceCharges'], '₹0'),
         amenities: _parseStringList(json['amenities']),
         images: _parseStringList(json['images']),
+        videos: _parseStringList(json['videos']),
         floorPlans: _parseStringList(json['floorPlans']),
         documents: _parseStringList(json['documents']),
         ownerId: _parseInt(json['ownerId'] ?? json['owner_id'], 0) == 0 ? null : _parseInt(json['ownerId'] ?? json['owner_id']),
@@ -290,12 +308,14 @@ class PropertyModel {
       'agencyName': agencyName,
       'propertyType': propertyType,
       'status': status,
+      'brokerId': brokerId,
       'brokerName': brokerName,
       'country': country,
       'state': stateName,
       'city': city,
       'area': area,
       'address': address,
+      'pincode': pincode,
       'googleMapUrl': googleMapUrl,
       'builtUpArea': areaSqft,
       'areaSqft': areaSqft,
@@ -308,6 +328,7 @@ class PropertyModel {
       'maintenanceCharges': maintenanceCharges,
       'amenities': amenities,
       'images': images,
+      'videos': videos,
       'floorPlans': floorPlans,
       'documents': documents,
       if (ownerId != null) 'ownerId': ownerId,

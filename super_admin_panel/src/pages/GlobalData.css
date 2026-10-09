@@ -109,12 +109,12 @@
   color: var(--success);
 }
 
-.status-badge.under-offer, .status-badge.negotiation, .status-badge.partially-paid, .status-badge.pending {
+.status-badge.under-offer, .status-badge.under-negotiation, .status-badge.token-done, .status-badge.negotiation, .status-badge.partially-paid, .status-badge.pending {
   background-color: #FEF3C7;
   color: var(--warning);
 }
 
-.status-badge.sold, .status-badge.dropped, .status-badge.suspended, .status-badge.canceled, .status-badge.failed {
+.status-badge.sold, .status-badge.rented, .status-badge.dropped, .status-badge.suspended, .status-badge.canceled, .status-badge.failed {
   background-color: #FEE2E2;
   color: var(--error);
 }

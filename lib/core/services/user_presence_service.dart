@@ -34,8 +34,7 @@ class UserPresenceService with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       setOnline(true);
     } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached ||
-        state == AppLifecycleState.inactive) {
+        state == AppLifecycleState.detached) {
       setOnline(false);
     }
   }

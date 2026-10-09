@@ -1,7 +1,24 @@
 import { Router } from 'express';
-import { getConversations, getAdminConversations, getMessages, sendMessage } from '../controllers/chat.controller';
+import {
+  getConversations,
+  getAdminConversations,
+  getMessages,
+  sendMessage,
+  getChatContacts,
+  markConversationAsRead,
+} from '../controllers/chat.controller';
 
 const router = Router();
+
+/**
+ * @openapi
+ * /chat/contacts:
+ *   get:
+ *     summary: Get All Platform Contacts by Agency for Starting Chats
+ *     tags:
+ *       - Chat
+ */
+router.get('/chat/contacts', getChatContacts);
 
 /**
  * @openapi
@@ -42,5 +59,15 @@ router.get('/chat/messages/:conversationId', getMessages);
  *       - Chat
  */
 router.post('/chat/send', sendMessage);
+
+/**
+ * @openapi
+ * /chat/read/{conversationId}:
+ *   put:
+ *     summary: Mark Conversation Messages as Read
+ *     tags:
+ *       - Chat
+ */
+router.put('/chat/read/:conversationId', markConversationAsRead);
 
 export default router;

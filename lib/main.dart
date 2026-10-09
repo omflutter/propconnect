@@ -11,6 +11,10 @@ import 'package:propconnect/core/constants/app_strings.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/services/user_presence_service.dart';
 import 'package:propconnect/core/services/push_notification_service.dart';
+import 'package:propconnect/core/services/biometric_service.dart';
+import 'package:propconnect/core/widgets/biometric_lock_wrapper.dart';
+
+import 'package:propconnect/core/providers/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +38,9 @@ void main() async {
   // PRD Sec 17: Initialize Push Notifications & FCM Device Permissions
   PushNotificationService().initialize();
 
+  // Initialize Biometric Screen Lock State
+  BiometricService().init();
+
   // DevicePreview is only enabled for Web development preview, disabled on mobile devices (Android / iOS)
   final bool enableDevicePreview = kIsWeb && !kReleaseMode;
 
@@ -47,20 +54,28 @@ void main() async {
   );
 }
 
-class PropConnectApp extends StatelessWidget {
+class PropConnectApp extends ConsumerWidget {
   final bool useDevicePreview;
 
   const PropConnectApp({super.key, this.useDevicePreview = false});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+
     return MaterialApp.router(
       title: AppStrings.appName,
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       routerConfig: AppRouter.router,
       debugShowCheckedModeBanner: false,
       locale: useDevicePreview ? DevicePreview.locale(context) : null,
-      builder: useDevicePreview ? DevicePreview.appBuilder : null,
+      builder: (context, child) {
+        final previewChild = useDevicePreview ? DevicePreview.appBuilder(context, child) : child;
+        return BiometricLockWrapper(child: previewChild ?? const SizedBox.shrink());
+      },
     );
   }
 }
+

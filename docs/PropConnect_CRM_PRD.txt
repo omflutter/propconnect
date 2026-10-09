@@ -1,0 +1,1620 @@
+
+
+PropConnect CRM
+Real Estate Agency Management Platform
+Product Requirements & System Design Document
+
+
+
+
+Document Version
+
+
+1.0
+
+
+
+Status
+
+
+Draft — For Review
+
+
+
+Prepared For
+
+
+Real Estate Firms & Agencies
+
+
+
+Date
+
+
+June 2025
+
+
+
+Classification
+
+
+Confidential
+
+Table of Contents
+TOC \h \o "1-3" \t "Heading 1,1,Heading 2,2,Heading 3,3"Table of Contents PAGEREF _Toc231905228 \h 1
+1. Executive Summary PAGEREF _Toc231905229 \h 1
+2. Problem Statement & Market Context PAGEREF _Toc231905230 \h 1
+2.1 Current Pain Points PAGEREF _Toc231905231 \h 1
+2.2 The Opportunity PAGEREF _Toc231905232 \h 1
+3. Stakeholders & User Roles PAGEREF _Toc231905233 \h 1
+3.1 External Stakeholders PAGEREF _Toc231905234 \h 1
+4. Core Modules & Feature Specifications PAGEREF _Toc231905235 \h 1
+4.1 Property Management Module PAGEREF _Toc231905236 \h 1
+4.1.1 Property Data Fields PAGEREF _Toc231905237 \h 1
+4.1.2 Property Visibility System PAGEREF _Toc231905238 \h 1
+4.2 Lead Management Module PAGEREF _Toc231905239 \h 1
+4.2.1 Lead Data Fields PAGEREF _Toc231905240 \h 1
+4.2.2 Lead Pipeline View PAGEREF _Toc231905241 \h 1
+4.2.3 Lead Assignment Rules PAGEREF _Toc231905242 \h 1
+4.3 Client Communication & Follow-Up Module PAGEREF _Toc231905243 \h 1
+4.3.1 Messaging Features PAGEREF _Toc231905244 \h 1
+4.3.2 Follow-Up Management PAGEREF _Toc231905245 \h 1
+4.3.3 Activity Timeline PAGEREF _Toc231905246 \h 1
+4.4 Transaction Milestone Tracking PAGEREF _Toc231905247 \h 1
+4.5 Inter-Agency Collaboration Module PAGEREF _Toc231905248 \h 1
+4.5.1 How Cross-Agency Deals Work PAGEREF _Toc231905249 \h 1
+4.5.2 Privacy in Cross-Agency Deals PAGEREF _Toc231905250 \h 1
+4.6 Owner & Agent Directory PAGEREF _Toc231905251 \h 1
+4.6.1 Property Owner Profile PAGEREF _Toc231905252 \h 1
+4.6.2 Agent Performance Profile PAGEREF _Toc231905253 \h 1
+5. Role-Based Access Control (RBAC) PAGEREF _Toc231905254 \h 1
+6. Platform Architecture PAGEREF _Toc231905255 \h 1
+6.1 Technology Stack (Recommended) PAGEREF _Toc231905256 \h 1
+6.2 Mobile App (iOS & Android) PAGEREF _Toc231905257 \h 1
+6.2.1 Mobile App Key Screens PAGEREF _Toc231905258 \h 1
+6.2.2 Offline Capability PAGEREF _Toc231905259 \h 1
+6.3 Admin Panel (Web) PAGEREF _Toc231905260 \h 1
+6.3.1 Admin Panel Key Sections PAGEREF _Toc231905261 \h 1
+7. Additional Features & Enhancements PAGEREF _Toc231905262 \h 1
+7.1 Smart Dashboard & Analytics PAGEREF _Toc231905263 \h 1
+7.2 Automated Reminders & Alerts PAGEREF _Toc231905264 \h 1
+7.3 Document Management PAGEREF _Toc231905265 \h 1
+7.4 Property Matching Engine PAGEREF _Toc231905266 \h 1
+7.5 Commission & Revenue Tracking PAGEREF _Toc231905267 \h 1
+7.6 Property Comparison Tool PAGEREF _Toc231905268 \h 1
+7.7 Site Visit Management PAGEREF _Toc231905269 \h 1
+7.8 Third-Party Integrations PAGEREF _Toc231905270 \h 1
+7.9 Multi-Branch / Multi-City Support PAGEREF _Toc231905271 \h 1
+8. Security & Data Privacy PAGEREF _Toc231905272 \h 1
+8.1 Authentication & Authorization PAGEREF _Toc231905273 \h 1
+8.2 Data Security PAGEREF _Toc231905274 \h 1
+8.3 Audit & Compliance PAGEREF _Toc231905275 \h 1
+9. Implementation Roadmap PAGEREF _Toc231905276 \h 1
+9.1 MVP Scope PAGEREF _Toc231905277 \h 1
+10. Non-Functional Requirements PAGEREF _Toc231905278 \h 1
+11. Success Metrics & KPIs PAGEREF _Toc231905279 \h 1
+11.1 Business Metrics PAGEREF _Toc231905280 \h 1
+11.2 Product Metrics PAGEREF _Toc231905281 \h 1
+11.3 Operational Metrics PAGEREF _Toc231905282 \h 1
+12. Glossary PAGEREF _Toc231905283 \h 1
+13. Document Control & Next Steps PAGEREF _Toc231905284 \h 1
+13.1 Recommended Next Steps PAGEREF _Toc231905285 \h 1
+
+
+1. Executive Summary
+The real estate industry operates in a fast-paced, relationship-driven environment where information asymmetry between agents can cost deals and damage client trust. Today, a typical real estate firm employing 10 to 20 or more agents faces a critical operational gap: each agent manages their own leads, properties, and clients in isolation. This results in duplicated effort, missed co-brokerage opportunities, and no single source of truth for the firm's property portfolio.
+
+PropConnect CRM is designed to solve this problem. It is a purpose-built Customer Relationship Management platform for real estate agencies that unifies property listings, lead management, inter-agent communication, and transaction tracking into one cohesive system. PropConnect operates across a mobile app and a web-based admin panel, with role-based access ensuring owners retain full control while agents efficiently manage their day-to-day workflows.
+
+
+
+
+
+Key Platform Highlights
+
+
+
+Unified property portfolio — all agents see the firm's listings in one place
+
+
+
+Public / Private property visibility — agencies control what is shared externally
+
+
+
+Cross-agency deal collaboration — buyer agents and seller agents can transact seamlessly
+
+
+
+Transaction milestone tracking — token, agreement, and registry stages all tracked
+
+
+
+Automated client follow-up — scheduled reminders and messaging built in
+
+
+
+Role-based access — Owner, Manager, Agent, and Read-Only roles
+
+
+
+Mobile app + Admin panel — full coverage across devices
+
+2. Problem Statement & Market Context
+2.1 Current Pain Points
+Real estate firms face the following recurring challenges in their daily operations:
+
+
+
+
+
+#
+
+
+Pain Point
+
+
+Business Impact
+
+
+
+1
+
+
+Agents work in silos — unaware of each other's property inventory
+
+
+Missed co-brokerage, duplicate pitches to the same client
+
+
+
+2
+
+
+Lead management is done via WhatsApp, Excel, or paper
+
+
+Leads fall through the cracks, no follow-up accountability
+
+
+
+3
+
+
+No visibility into deal stages (token, agreement, registry)
+
+
+Owners cannot track revenue pipeline
+
+
+
+4
+
+
+No structured property data — quoting, ownership details are verbal
+
+
+Legal and financial risk, miscommunication
+
+
+
+5
+
+
+Cross-agency transactions are unstructured
+
+
+Disputes over commissions, no documentation trail
+
+
+
+6
+
+
+Client communication is scattered across personal phones
+
+
+Client experience is inconsistent, relationships are agent-dependent not firm-dependent
+
+
+
+7
+
+
+No mobile access for field agents
+
+
+Agents cannot update or access data during property visits
+
+
+
+8
+
+
+Owner has no real-time operational visibility
+
+
+Cannot make data-driven staffing or inventory decisions
+
+2.2 The Opportunity
+A well-designed CRM tailored for real estate agencies can consolidate all these workflows into a single platform, dramatically reducing administrative overhead while increasing deal velocity and client satisfaction. PropConnect fills this gap with a solution built from the ground up for the specific realities of multi-agent real estate operations.
+
+3. Stakeholders & User Roles
+PropConnect implements a four-tier role hierarchy. Each role comes with specific permissions and access levels, ensuring data security and operational efficiency.
+
+
+
+
+
+Role
+
+
+Who They Are
+
+
+Access Level
+
+
+
+Super Admin / Owner
+
+
+Firm owner or director — has ultimate authority over the platform
+
+
+Full access: all data, all agents, all settings, billing, reports
+
+
+
+Manager / Branch Head
+
+
+Senior agent or branch manager overseeing a team
+
+
+Can view all team properties & leads, assign leads, run reports, manage agents under them
+
+
+
+Agent
+
+
+Individual sales/rental agent
+
+
+Can manage their own leads, properties, clients; limited access to colleague data
+
+
+
+Read-Only / Intern
+
+
+Support staff, trainees, or external consultants
+
+
+View-only access to public listings and assigned leads
+
+3.1 External Stakeholders
+Property Owners / Sellers — clients whose properties are listed on the CRM
+Buyers / Tenants — potential clients managed as leads
+Partner Agencies — external firms with whom deals are co-brokered
+Legal / Registry Offices — external parties involved in property transactions
+
+4. Core Modules & Feature Specifications
+4.1 Property Management Module
+The property module is the backbone of PropConnect. It serves as the central registry of all properties the firm is dealing with — whether for sale, for rent, under negotiation, or already closed.
+
+4.1.1 Property Data Fields
+
+
+
+
+Field
+
+
+Description
+
+
+Data Type
+
+
+
+Property ID
+
+
+Auto-generated unique identifier
+
+
+System
+
+
+
+Property Name / Title
+
+
+Descriptive name (e.g., '3BHK Flat in Baner')
+
+
+Text
+
+
+
+Property Type
+
+
+Residential / Commercial / Plot / Industrial / Agricultural
+
+
+Dropdown
+
+
+
+Sub-Type
+
+
+Apartment / Villa / Shop / Office / Warehouse etc.
+
+
+Dropdown
+
+
+
+Address & Location
+
+
+Full address with city, locality, pincode, GPS coordinates
+
+
+Text + Map
+
+
+
+Carpet Area / Built-Up Area
+
+
+In sq.ft. or sq.m.
+
+
+Numeric
+
+
+
+Owner's Name
+
+
+Full legal name of the property owner
+
+
+Text
+
+
+
+Owner's Mobile Number
+
+
+Primary contact number
+
+
+Phone
+
+
+
+Owner's Alternate Contact
+
+
+Secondary phone or email
+
+
+Text
+
+
+
+Asking Price / Quoted Amount
+
+
+Price owner is quoting
+
+
+Currency
+
+
+
+Negotiable Price
+
+
+Minimum acceptable price (visible only to Manager+)
+
+
+Currency
+
+
+
+Token Amount
+
+
+Deposit / booking amount received (if any)
+
+
+Currency
+
+
+
+Token Date
+
+
+Date on which token was received
+
+
+Date
+
+
+
+Agreement Status
+
+
+Not Started / Draft / Signed / Registered
+
+
+Status
+
+
+
+Registry Status
+
+
+Pending / Scheduled / Completed
+
+
+Status
+
+
+
+Registry Date
+
+
+Scheduled or completed registry date
+
+
+Date
+
+
+
+Assigned Agent
+
+
+Primary agent responsible for this property
+
+
+Lookup
+
+
+
+Co-Agent
+
+
+Secondary agent involved in the deal (e.g., buyer's agent)
+
+
+Lookup
+
+
+
+Visibility
+
+
+Public (all agencies) / Private (own agency only) / Draft
+
+
+Toggle
+
+
+
+Listing Status
+
+
+Active / Under Offer / Sold / Rented / Off Market
+
+
+Status
+
+
+
+Photos & Documents
+
+
+Images, floor plans, legal documents
+
+
+File Upload
+
+
+
+Notes / Remarks
+
+
+Internal notes visible only to agents
+
+
+Rich Text
+
+
+
+Date Listed
+
+
+Auto-captured date property was added
+
+
+System
+
+
+
+Last Updated
+
+
+Auto-captured timestamp of last modification
+
+
+System
+
+4.1.2 Property Visibility System
+One of the most important features of PropConnect is the ability to control who can see a property. This applies both within the agency and across agencies.
+
+
+
+
+
+Visibility Mode
+
+
+Who Can See
+
+
+Use Case
+
+
+
+Private
+
+
+Only agents within the same agency
+
+
+Exclusive listings, sensitive owner information, deals under negotiation
+
+
+
+Public
+
+
+All registered agencies on the platform
+
+
+Open listings where maximum exposure is desired
+
+
+
+Draft
+
+
+Only the listing agent and managers
+
+
+Incomplete listings, properties being verified before publishing
+
+4.2 Lead Management Module
+Leads are potential buyers or tenants who have expressed interest in a property. Effective lead management is the primary driver of revenue in any real estate operation.
+
+4.2.1 Lead Data Fields
+Lead Name, Phone Number, Email Address
+Lead Source — Walk-in, WhatsApp, Portal (99acres, MagicBricks, Housing), Referral, Cold Call, Website, Social Media
+Lead Type — Buyer / Tenant / Investor
+Budget Range — minimum and maximum
+Preferred Property Type and Location
+BHK Requirement — 1BHK / 2BHK / 3BHK / 4BHK+ / Commercial
+Lead Status — New / Contacted / Site Visit Scheduled / Site Visit Done / Negotiation / Token Paid / Deal Closed / Cold / Lost
+Assigned Agent — which agent is managing this lead
+Priority — Hot / Warm / Cold
+Follow-Up Date — next scheduled follow-up
+Communication History — all calls, messages, meetings logged
+
+4.2.2 Lead Pipeline View
+The lead module includes a Kanban-style pipeline view where leads can be dragged between stages. Agents can also toggle to a list view or a calendar view to see follow-ups organized by date.
+
+4.2.3 Lead Assignment Rules
+Owners and Managers can manually assign leads to any agent
+System supports round-robin auto-assignment if enabled
+Leads can be re-assigned with a reason and audit trail
+Unassigned leads older than a configurable threshold trigger an alert to the Manager
+
+4.3 Client Communication & Follow-Up Module
+Communication is the lifeblood of real estate sales. PropConnect centralizes all client interactions, ensuring nothing falls through the cracks and the firm (not just individual agents) retains institutional knowledge about every client relationship.
+
+4.3.1 Messaging Features
+In-app messaging with clients (WhatsApp-style chat interface)
+Pre-built message templates for common scenarios (property sharing, follow-up reminders, congratulation messages for closed deals)
+Bulk messaging — send a property card to multiple leads at once
+Message scheduling — schedule a follow-up message for a future date and time
+Property sharing — share a formatted property summary card directly from the property module
+Read receipts and message status tracking
+
+4.3.2 Follow-Up Management
+Every lead must have a follow-up date set — agents are alerted if a lead has no follow-up scheduled
+Follow-up reminders via push notification, SMS, and email
+Follow-up outcomes are logged (Contacted / No Answer / Interested / Not Interested / Site Visit Scheduled)
+Overdue follow-ups are highlighted in the dashboard for managers
+Follow-up frequency analytics — track which agents are most consistent
+
+4.3.3 Activity Timeline
+Every lead and property has a complete, chronological activity timeline showing all calls, messages, site visits, price negotiations, and document submissions. This creates an institutional memory that persists even if the agent who managed the relationship leaves the firm.
+
+4.4 Transaction Milestone Tracking
+Closing a real estate deal involves multiple legal and financial milestones. PropConnect tracks each of these systematically to give owners and managers a real-time view of the revenue pipeline.
+
+
+
+
+
+Stage
+
+
+Description
+
+
+System Actions
+
+
+
+1. Inquiry
+
+
+Lead has shown interest, initial discussion happened
+
+
+Lead created, agent assigned
+
+
+
+2. Site Visit
+
+
+Buyer has visited the property
+
+
+Visit logged with date, time, feedback
+
+
+
+3. Negotiation
+
+
+Price negotiation in progress
+
+
+Negotiation notes, counter-offers tracked
+
+
+
+4. Token / Booking
+
+
+Booking amount paid by buyer
+
+
+Token amount, date, receipt uploaded, both parties notified
+
+
+
+5. Agreement to Sell
+
+
+Sale agreement drafted and signed
+
+
+Document upload, agreement date recorded, reminder for registry
+
+
+
+6. Loan Processing
+
+
+Buyer's home loan under process (if applicable)
+
+
+Bank name, loan amount, expected disbursement date tracked
+
+
+
+7. Registry
+
+
+Property registration at sub-registrar office
+
+
+Registry date, registration number, stamp duty details recorded
+
+
+
+8. Possession
+
+
+Physical possession of property handed over
+
+
+Possession date, key handover confirmation, final payment verified
+
+
+
+9. Deal Closed
+
+
+Transaction fully completed
+
+
+Commission calculated, deal moved to closed pipeline
+
+4.5 Inter-Agency Collaboration Module
+Real estate deals frequently involve two agencies — one representing the seller and one the buyer. PropConnect supports this with structured co-brokerage features.
+
+4.5.1 How Cross-Agency Deals Work
+Agency A lists a property as Public
+Agency B's agent finds the property while searching public listings
+Agency B's agent sends a co-brokerage request on the property
+Agency A's manager approves or declines the request
+If approved, both agencies can see the deal progress on their respective dashboards
+Commission split is agreed upon and recorded in the system
+Each agency's view of the deal is filtered — neither sees the other's client details
+
+4.5.2 Privacy in Cross-Agency Deals
+Agency A cannot see Agency B's buyer contact details
+Agency B cannot see Agency A's owner negotiable price or internal notes
+Deal milestones and documents are shared only as agreed
+All cross-agency communication goes through the in-platform messaging system
+
+4.6 Owner & Agent Directory
+PropConnect maintains a structured directory of property owners and agents, eliminating duplicate entries and providing a 360-degree view of every relationship.
+
+4.6.1 Property Owner Profile
+Full name, contact numbers, email, address
+All properties linked to this owner
+Transaction history with the firm
+Communication history
+KYC documents (Aadhaar, PAN, etc.) stored securely
+
+4.6.2 Agent Performance Profile
+Agent contact details, joining date, assigned territory
+Active leads count, converted leads, conversion rate
+Active properties listed
+Revenue generated (commissions closed)
+Follow-up compliance score
+Monthly and quarterly performance reports
+
+5. Role-Based Access Control (RBAC)
+PropConnect implements a strict, granular access control system ensuring each user can only see and do what their role permits.
+
+
+
+
+
+Feature / Action
+
+
+Owner
+
+
+Manager
+
+
+Agent
+
+
+Read-Only
+
+
+
+View all agency properties
+
+
+YES
+
+
+YES
+
+
+Own + Public
+
+
+Public only
+
+
+
+Add / Edit property
+
+
+YES
+
+
+YES
+
+
+Own only
+
+
+NO
+
+
+
+Delete property
+
+
+YES
+
+
+NO
+
+
+NO
+
+
+NO
+
+
+
+Change property visibility
+
+
+YES
+
+
+YES
+
+
+Own only
+
+
+NO
+
+
+
+View all agency leads
+
+
+YES
+
+
+YES
+
+
+Own only
+
+
+NO
+
+
+
+Assign / Re-assign leads
+
+
+YES
+
+
+YES
+
+
+NO
+
+
+NO
+
+
+
+View negotiable price
+
+
+YES
+
+
+YES
+
+
+NO
+
+
+NO
+
+
+
+Approve cross-agency requests
+
+
+YES
+
+
+YES
+
+
+NO
+
+
+NO
+
+
+
+View agent performance reports
+
+
+YES
+
+
+YES
+
+
+Own only
+
+
+NO
+
+
+
+Manage user accounts
+
+
+YES
+
+
+NO
+
+
+NO
+
+
+NO
+
+
+
+Configure system settings
+
+
+YES
+
+
+NO
+
+
+NO
+
+
+NO
+
+
+
+Export data
+
+
+YES
+
+
+YES
+
+
+NO
+
+
+NO
+
+
+
+Access billing & subscription
+
+
+YES
+
+
+NO
+
+
+NO
+
+
+NO
+
+
+
+Send bulk messages
+
+
+YES
+
+
+YES
+
+
+Own leads
+
+
+NO
+
+6. Platform Architecture
+6.1 Technology Stack (Recommended)
+
+
+
+
+Layer
+
+
+Component
+
+
+Recommended Technology
+
+
+
+Frontend — Admin Panel
+
+
+Web Application
+
+
+React.js or Next.js, Tailwind CSS
+
+
+
+Frontend — Mobile App
+
+
+iOS & Android
+
+
+React Native (shared codebase)
+
+
+
+Backend API
+
+
+REST or GraphQL API
+
+
+Node.js (Express / Fastify) or Django REST Framework
+
+
+
+Database
+
+
+Primary Data Store
+
+
+PostgreSQL (relational) + Redis (caching/sessions)
+
+
+
+File Storage
+
+
+Images, Documents
+
+
+AWS S3 or Google Cloud Storage
+
+
+
+Authentication
+
+
+User Auth & Tokens
+
+
+JWT with refresh tokens, OAuth 2.0
+
+
+
+Notifications
+
+
+Push, SMS, Email
+
+
+Firebase Cloud Messaging, Twilio, SendGrid
+
+
+
+Maps & Location
+
+
+Property Geolocation
+
+
+Google Maps API or Mapbox
+
+
+
+Search
+
+
+Property & Lead Search
+
+
+Elasticsearch or PostgreSQL Full-Text Search
+
+
+
+Analytics
+
+
+Dashboards & Reports
+
+
+Metabase or custom charts (Recharts/Chart.js)
+
+
+
+DevOps
+
+
+Hosting & Deployment
+
+
+AWS / GCP / Azure, Docker, Kubernetes
+
+6.2 Mobile App (iOS & Android)
+The mobile app is designed for field agents who need full CRM access while on site visits, at client meetings, or away from their desks.
+
+6.2.1 Mobile App Key Screens
+Dashboard — daily summary of tasks, follow-ups due, pipeline overview
+Property Search — search and filter the full agency property portfolio with photos
+Property Detail — full property card with owner info, documents, transaction status
+Lead Manager — list, pipeline, and calendar views of leads
+Follow-Up Tracker — today's follow-ups, overdue alerts, quick call/message actions
+Client Chat — in-app messaging with clients, property sharing
+Site Visit Logger — log visits with geo-location stamp, photos, and notes
+Quick Add — rapid property or lead entry from the field
+Notifications Center — all alerts, reminders, and approvals
+
+6.2.2 Offline Capability
+The mobile app supports offline mode for core functions. Agents can view cached property data and add notes when connectivity is poor. Data syncs automatically when connection is restored.
+
+6.3 Admin Panel (Web)
+The web-based admin panel is designed for Owners and Managers who need comprehensive oversight, reporting, and configuration capabilities.
+
+6.3.1 Admin Panel Key Sections
+Executive Dashboard — revenue pipeline, lead funnel, agent performance at a glance
+Property Management — full CRUD for all properties, bulk import via CSV/Excel
+Lead Management — complete lead database with advanced filters and bulk actions
+Agent Management — add/remove agents, set roles, view performance reports
+Cross-Agency Marketplace — approve/decline co-brokerage requests, manage partner agencies
+Communication Hub — broadcast messages, campaign management, template library
+Reports & Analytics — customizable reports for revenue, leads, agents, properties
+System Settings — visibility rules, notification preferences, commission structures
+Audit Log — complete log of all actions taken on the platform (who changed what and when)
+
+7. Additional Features & Enhancements
+7.1 Smart Dashboard & Analytics
+Pipeline value overview — total value of active deals by stage
+Agent leaderboard — ranked by leads converted, revenue, and follow-up compliance
+Property velocity chart — how long properties stay in different stages before closing
+Lead source ROI — which sources (portals, referrals, walk-ins) generate the best leads
+Monthly and quarterly revenue forecasting based on pipeline data
+Heat map of property locations — visual cluster analysis for market insights
+
+7.2 Automated Reminders & Alerts
+Follow-up due today / overdue — push notification on mobile + email digest
+Registry date approaching — alert 7 days, 3 days, and 1 day before
+Token expiry — alert if agreement not progressed within configured days after token
+Lead inactivity alert — flag leads with no activity for X days
+Property listing expiry — alert if property is still active after 90/180 days
+Birthday / anniversary reminders for clients — relationship management feature
+
+7.3 Document Management
+Centralized storage for all deal-related documents — sale agreements, token receipts, ID proofs, NOCs, title documents
+Per-property and per-lead document folders
+Version control — track document revisions
+Access control — documents can be restricted to specific roles
+E-signature integration (optional phase 2) — for agreement signing
+Document expiry alerts — for time-sensitive legal documents
+
+7.4 Property Matching Engine
+PropConnect includes an intelligent matching system that automatically suggests relevant properties to leads based on their requirements.
+When a new lead is added with their requirements (budget, location, BHK), the system automatically suggests matching properties
+Agents receive a notification: '3 properties match your new lead — view suggestions'
+Agents can send a formatted property brochure directly to the lead with one tap
+System learns from closed deals to improve match quality over time
+
+7.5 Commission & Revenue Tracking
+Define commission structures (percentage-based or flat fee) per deal type
+Track expected and received commission for every closed deal
+Agent-wise commission reports for payroll and incentive calculations
+Commission split tracking for co-brokerage deals
+Tax document support — generate commission certificates for agents
+
+7.6 Property Comparison Tool
+Agents can compare up to 3 properties side-by-side for a client
+Comparison covers area, price, location, amenities, transaction status
+Comparison report can be shared with the client as a PDF or via WhatsApp
+
+7.7 Site Visit Management
+Schedule site visits from within the lead or property record
+Agents receive mobile reminders before scheduled visits
+Visit log includes geo-location stamp, time, duration, photos taken during visit
+Post-visit feedback form — capture client reactions and next steps immediately after the visit
+Visit history visible to managers for coaching and quality assurance
+
+7.8 Third-Party Integrations
+
+
+
+
+Integration
+
+
+Purpose
+
+
+
+99acres / MagicBricks / Housing.com
+
+
+Auto-import leads from property portals via API
+
+
+
+WhatsApp Business API
+
+
+Send property details and follow-ups through WhatsApp
+
+
+
+Google Maps
+
+
+Property location display, route to site visit, area heat maps
+
+
+
+Tally / Zoho Books
+
+
+Commission and revenue data sync for accounting
+
+
+
+IndiaMART / JustDial
+
+
+Lead import from business directories
+
+
+
+E-stamp / Registration Portal
+
+
+Registry status updates and document links
+
+7.9 Multi-Branch / Multi-City Support
+Firms with multiple branches or offices can manage all branches from one admin panel
+Branch-level property isolation — agents in Branch A do not automatically see Branch B's private listings
+Branch performance comparison reports for owner visibility
+Properties can be shared across branches explicitly
+
+8. Security & Data Privacy
+8.1 Authentication & Authorization
+JWT-based authentication with short-lived access tokens and long-lived refresh tokens
+Role-based access control enforced at API level — not just UI level
+Two-factor authentication (OTP via SMS) for Owner and Manager logins
+Session management — active sessions visible, remote logout available
+IP whitelisting option for admin panel access
+
+8.2 Data Security
+All data encrypted in transit (TLS 1.3) and at rest (AES-256)
+Owner and client PII (phone numbers, financial data) masked in certain role views
+Document storage with access-controlled signed URLs — documents are not publicly accessible
+Database backups every 24 hours with 30-day retention
+Penetration testing before go-live and quarterly thereafter
+
+8.3 Audit & Compliance
+Complete audit log — every create, update, delete action logged with user, timestamp, and IP
+Data retention policy configurable by owner (e.g., leads retained for 3 years)
+Data export — owners can export all their data in CSV/Excel format at any time
+GDPR/DPDP compliant data handling — client consent captured and stored
+Right to erasure — client data can be permanently deleted on request
+
+9. Implementation Roadmap
+
+
+
+
+Phase
+
+
+Duration
+
+
+Deliverables
+
+
+
+Phase 1 — Foundation
+
+
+Weeks 1–6
+
+
+User auth, role management, property CRUD, basic lead management, admin panel scaffolding
+
+
+
+Phase 2 — Core CRM
+
+
+Weeks 7–12
+
+
+Lead pipeline, follow-up system, in-app messaging, mobile app (basic), transaction milestone tracking
+
+
+
+Phase 3 — Collaboration
+
+
+Weeks 13–18
+
+
+Cross-agency marketplace, public/private visibility, co-brokerage workflow, document management
+
+
+
+Phase 4 — Intelligence
+
+
+Weeks 19–24
+
+
+Property matching engine, analytics dashboard, automated alerts, commission tracking, portal integrations
+
+
+
+Phase 5 — Polish & Scale
+
+
+Weeks 25–30
+
+
+Performance optimization, offline mobile mode, multi-branch support, e-signature, advanced reporting, UAT, go-live
+
+9.1 MVP Scope
+The Minimum Viable Product should include the following for initial launch:
+Property module with all data fields and public/private visibility
+Lead module with pipeline view and follow-up scheduling
+Role-based access (Owner, Manager, Agent)
+In-app messaging with clients
+Mobile app with core property and lead access
+Admin panel with dashboard, agent management, and basic reports
+Transaction milestone tracking (token, agreement, registry)
+
+10. Non-Functional Requirements
+
+
+
+
+Requirement
+
+
+Target Specification
+
+
+
+Performance
+
+
+API response time < 300ms for 95th percentile; mobile app loads within 2 seconds on 4G
+
+
+
+Availability
+
+
+99.9% uptime SLA; planned maintenance windows during off-peak hours
+
+
+
+Scalability
+
+
+Support up to 500 concurrent users per agency; horizontally scalable architecture
+
+
+
+Data Backup
+
+
+Automated daily backups; point-in-time recovery within 4 hours
+
+
+
+Mobile Compatibility
+
+
+iOS 14+ and Android 10+; optimized for lower-end Android devices common in India
+
+
+
+Browser Support
+
+
+Chrome, Firefox, Safari, Edge (latest 2 versions); IE not supported
+
+
+
+Localization
+
+
+English + Hindi + Marathi UI languages; currency in INR; date format DD/MM/YYYY
+
+
+
+Accessibility
+
+
+WCAG 2.1 Level AA compliance for admin panel
+
+
+
+Notification Delivery
+
+
+Push notifications delivered within 30 seconds; SMS within 60 seconds
+
+11. Success Metrics & KPIs
+The success of PropConnect will be measured against the following business and product metrics:
+
+11.1 Business Metrics
+Lead-to-deal conversion rate improvement — baseline vs. 6 months post-launch
+Average deal cycle time — target 15% reduction within first year
+Revenue per agent — target 20% increase through better lead management
+Cross-agency co-brokerage deals — count and value of deals enabled by the marketplace
+
+11.2 Product Metrics
+Daily Active Users (DAU) / Monthly Active Users (MAU) — target 80% of agent accounts active monthly
+Follow-up compliance rate — percentage of leads with scheduled follow-ups
+Data completeness score — percentage of properties with all key fields filled
+Mobile app ratings — target 4.2+ stars on App Store and Play Store
+Feature adoption rate — percentage of users using key features like messaging, matching engine
+
+11.3 Operational Metrics
+System uptime vs. SLA
+Average API response time
+Support ticket volume — leading indicator of usability issues
+Data sync success rate for portal integrations
+
+12. Glossary
+
+
+
+
+Term
+
+
+Definition
+
+
+
+Token / Booking Amount
+
+
+An advance payment made by the buyer to the seller to reserve the property, typically 1-2% of property value
+
+
+
+Agreement to Sell
+
+
+A legal document signed by both parties committing to the sale transaction at a defined price and timeline
+
+
+
+Registry
+
+
+The formal registration of the property sale deed at the Sub-Registrar Office, making the transfer legally valid
+
+
+
+CRM
+
+
+Customer Relationship Management — a system for managing all interactions with clients and leads
+
+
+
+Co-brokerage
+
+
+A deal where two agents from different agencies collaborate — one representing the buyer, one the seller
+
+
+
+Lead
+
+
+A potential buyer or tenant who has shown interest in purchasing or renting a property
+
+
+
+Pipeline
+
+
+The collection of deals at various stages of progress, representing potential future revenue
+
+
+
+KYC
+
+
+Know Your Customer — the process of verifying the identity of clients and property owners
+
+
+
+RBAC
+
+
+Role-Based Access Control — a method of restricting system access based on the user's role
+
+
+
+BHK
+
+
+Bedroom, Hall, Kitchen — used to describe apartment configurations (e.g., 2BHK = 2 bedrooms)
+
+
+
+JWT
+
+
+JSON Web Token — a secure token format used for user authentication
+
+
+
+MVP
+
+
+Minimum Viable Product — the smallest version of a product that delivers core value
+
+13. Document Control & Next Steps
+13.1 Recommended Next Steps
+Stakeholder review of this document — collect feedback from firm owners and senior agents
+Wireframe / prototype development — create low-fidelity mockups of key screens for validation
+Technical architecture review — finalize technology stack and hosting infrastructure
+Sprint 0 setup — configure development environments, CI/CD pipeline, database schema
+Phase 1 development kick-off — begin with authentication and property module
+Beta testing with 1-2 agencies — gather real-world feedback before full launch
+
+
+
+
+
+Document Approval
+
+
+
+Prepared by: Product Team
+
+
+
+Reviewed by: (Pending — Business Owner Sign-off Required)
+
+
+
+Approved by: (Pending — CTO / Tech Lead Sign-off Required)
+
+
+
+Next Review Date: 30 days from approval
+
+
+
+Distribution: Internal — Development Team, Business Stakeholders
+
+— End of Document —

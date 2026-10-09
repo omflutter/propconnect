@@ -1,27 +1,30 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/network/api_service.dart';
+import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/services/push_notification_service.dart';
 import 'package:propconnect/features/notifications/domain/models/notification_model.dart';
 
-class NotificationsScreen extends StatefulWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<AppNotification> _notifications = [];
-  String _selectedFilter = 'all'; // 'all', 'unread', 'deal', 'collaboration', 'system'
+  String _selectedFilter = 'all'; // 'all', 'unread', 'chat', 'deal', 'collaboration', 'system'
   StreamSubscription? _pushSubscription;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -35,10 +38,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _pushSubscription = PushNotificationService.onMessageReceivedStream.stream.listen((_) {
       _fetchNotifications(silent: true);
     });
+
+    // Rapid auto-polling every 8 seconds while on notifications screen
+    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) _fetchNotifications(silent: true);
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _pushSubscription?.cancel();
     super.dispose();
   }
@@ -55,7 +64,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
   }
 
-  int get _unreadCount => _notifications.where((n) => !n.isRead).length;
+  int get _unreadCount => _notifications.where((n) => !n.isRead && n.type != 'chat').length;
 
   Future<void> _fetchNotifications({bool silent = false}) async {
     if (!silent) {
@@ -71,8 +80,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         agencyId: _currentAgencyId,
       );
 
-      if (response['success'] == true && response['data'] is List) {
-        final list = (response['data'] as List)
+      if (response['success'] == true) {
+        List<dynamic> rawList = [];
+        final data = response['data'];
+        if (data is List) {
+          rawList = data;
+        } else if (data is Map && data['notifications'] is List) {
+          rawList = data['notifications'] as List;
+        } else if (response['notifications'] is List) {
+          rawList = response['notifications'] as List;
+        }
+
+        final list = rawList
             .map((item) => AppNotification.fromJson(item as Map<String, dynamic>))
             .toList();
 
@@ -82,6 +101,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             _isLoading = false;
             _errorMessage = null;
           });
+          ref.read(unreadNotificationsProvider.notifier).updateCount(list.where((n) => !n.isRead).length);
         }
       } else {
         if (mounted) {
@@ -109,10 +129,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final unreadList = _notifications.where((n) => !n.isRead).toList();
     if (unreadList.isEmpty) return;
 
-    // Optimistic UI update
+    // Optimistic UI update & immediate badge reset
     setState(() {
       _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
     });
+    ref.read(unreadNotificationsProvider.notifier).updateCount(0);
 
     try {
       await ApiService.markAllNotificationsAsRead(
@@ -139,6 +160,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .map((n) => n.id == notif.id ? n.copyWith(isRead: true) : n)
           .toList();
     });
+    final currentUnread = ref.read(unreadNotificationsProvider);
+    ref.read(unreadNotificationsProvider.notifier).updateCount((currentUnread - 1).clamp(0, 9999));
 
     try {
       await ApiService.markNotificationAsRead(notif.id);
@@ -179,26 +202,58 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   void _onNotificationTapped(AppNotification notif) {
     _markAsRead(notif);
+
     if (notif.actionRoute != null && notif.actionRoute!.isNotEmpty) {
-      try {
-        context.push(notif.actionRoute!);
-      } catch (e) {
-        debugPrint('[Notification Nav Error] Cannot navigate to ${notif.actionRoute}: $e');
+      var targetRoute = notif.actionRoute!;
+      if (targetRoute.startsWith('/deals/') && targetRoute != '/deals') {
+        targetRoute = '/deal-details/${targetRoute.replaceFirst('/deals/', '')}';
       }
+      try {
+        context.push(targetRoute);
+        return;
+      } catch (e) {
+        debugPrint('[Notification Nav Error] Cannot navigate to $targetRoute: $e');
+      }
+    }
+
+    if (notif.type == 'deal') {
+      final dealId = notif.metadata?['dealId']?.toString() ?? notif.metadata?['id']?.toString();
+      if (dealId != null && dealId.isNotEmpty) {
+        context.push('/deal-details/$dealId');
+      } else {
+        context.push('/deals');
+      }
+      return;
+    }
+
+    if (notif.type == 'collaboration') {
+      context.push('/collaborations');
+      return;
+    }
+
+    if (notif.type == 'chat') {
+      final convId = notif.metadata?['conversationId']?.toString();
+      if (convId != null && convId.isNotEmpty) {
+        context.push('/chat/$convId');
+      } else {
+        context.push('/chat');
+      }
+      return;
     }
   }
 
   List<AppNotification> get _filteredNotifications {
+    final nonChat = _notifications.where((n) => n.type != 'chat').toList();
     if (_selectedFilter == 'unread') {
-      return _notifications.where((n) => !n.isRead).toList();
+      return nonChat.where((n) => !n.isRead).toList();
     } else if (_selectedFilter == 'deal') {
-      return _notifications.where((n) => n.type == 'deal').toList();
+      return nonChat.where((n) => n.type == 'deal').toList();
     } else if (_selectedFilter == 'collaboration') {
-      return _notifications.where((n) => n.type == 'collaboration').toList();
+      return nonChat.where((n) => n.type == 'collaboration').toList();
     } else if (_selectedFilter == 'system') {
-      return _notifications.where((n) => n.type == 'system' || n.type == 'subscription').toList();
+      return nonChat.where((n) => n.type == 'system' || n.type == 'subscription').toList();
     }
-    return _notifications;
+    return nonChat;
   }
 
   String _formatRelativeTime(DateTime dt) {
@@ -215,6 +270,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   IconData _getTypeIcon(String type) {
     switch (type) {
+      case 'chat':
+        return Icons.chat_bubble_outline_rounded;
       case 'collaboration':
         return Icons.handshake_outlined;
       case 'deal':
@@ -230,6 +287,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Color _getTypeColor(String type) {
     switch (type) {
+      case 'chat':
+        return const Color(0xFF0284C7);
       case 'collaboration':
         return const Color(0xFFF97316); // Orange
       case 'deal':

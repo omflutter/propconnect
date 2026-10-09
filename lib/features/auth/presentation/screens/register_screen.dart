@@ -10,6 +10,7 @@ import 'package:propconnect/core/routing/app_router.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/widgets/live_location_select.dart';
 import 'package:propconnect/core/widgets/agency_celebration_dialog.dart';
+import 'package:propconnect/core/providers/data_providers.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -37,6 +38,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   // Platform Configuration
   String _subscriptionTier = 'Pro (₹5,999/mo)';
   final _userQuotaCtrl = TextEditingController(text: '10');
+  final _pincodeCtrl = TextEditingController();
+  final _referralCodeCtrl = TextEditingController();
 
   final List<String> _tiers = [
     'Basic (₹2,999/mo)',
@@ -52,6 +55,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _agencyNameCtrl.dispose();
     _reraNumberCtrl.dispose();
+    _pincodeCtrl.dispose();
+    _referralCodeCtrl.dispose();
     _adminNameCtrl.dispose();
     _adminPhoneCtrl.dispose();
     _adminEmailCtrl.dispose();
@@ -100,6 +105,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         'reraNumber': _reraNumberCtrl.text.trim(),
         'location': _operatingLocation.trim(),
         'address': _corporateAddress.trim(),
+        'pincode': _pincodeCtrl.text.trim(),
+        'referralCode': _referralCodeCtrl.text.trim().toUpperCase(),
         'adminName': _adminNameCtrl.text.trim(),
         'adminEmail': _adminEmailCtrl.text.trim(),
         'adminPhone': _adminPhoneCtrl.text.trim(),
@@ -107,6 +114,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         'subscriptionTier': _subscriptionTier,
         'userQuota': quota,
       };
+
+      // Ensure no stale token or previous session is sent with public registration
+      ApiService.setAuthToken('');
+      await AuthStorageService.clearSession();
 
       final response = await ApiService.post('/auth/register', payload);
 
@@ -137,6 +148,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         );
 
         if (!mounted) return;
+
+        // Reset and reload property provider for the new agency
+        ref.read(propertyProvider.notifier).clearAndRefresh();
 
         // Update Riverpod states
         ref.read(userRoleProvider.notifier).setRole(UserRole.agencyAdmin);
@@ -338,6 +352,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               _corporateAddress = val;
                             });
                           },
+                          onLocationDetailsSelected: (details) {
+                            if (details.pincode.isNotEmpty) {
+                              setState(() {
+                                _pincodeCtrl.text = details.pincode;
+                              });
+                            }
+                          },
+                        ),
+                        const Gap(14),
+
+                        // Postal PIN Code
+                        _buildInputField(
+                          controller: _pincodeCtrl,
+                          label: 'Postal PIN Code',
+                          hint: '6-digit PIN (e.g. 400051)',
+                          icon: Icons.pin_drop_outlined,
+                          keyboardType: TextInputType.number,
+                          isRequired: false,
                         ),
                       ],
                     ),
@@ -557,6 +589,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             }
                             return null;
                           },
+                        ),
+                        const Gap(14),
+
+                        // Referral Code (Optional)
+                        _buildInputField(
+                          controller: _referralCodeCtrl,
+                          label: 'Referral Code (Optional)',
+                          hint: 'e.g. AG-002 or PROP-AG002',
+                          icon: Icons.card_giftcard_rounded,
+                          isRequired: false,
+                        ),
+                        const Gap(4),
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Text(
+                            '🪙 Joining via referral unlocks 500 PropCoins welcome bonus!',
+                            style: TextStyle(fontSize: 11.5, color: Color(0xFFD97706), fontWeight: FontWeight.w600),
+                          ),
                         ),
                       ],
                     ),

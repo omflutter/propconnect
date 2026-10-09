@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/providers/data_providers.dart';
 import 'package:propconnect/core/services/auth_storage_service.dart';
 import 'package:propconnect/core/network/api_service.dart';
+import 'package:propconnect/core/routing/app_router.dart';
 
 class SubscriptionScreen extends ConsumerStatefulWidget {
   const SubscriptionScreen({super.key});
@@ -16,6 +18,36 @@ class SubscriptionScreen extends ConsumerStatefulWidget {
 class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   bool _isUpgrading = false;
   String? _overriddenTier;
+  int _coinsBalance = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final userData = AuthStorageService.getUserData();
+    final agencyMap = userData?['agency'] as Map<String, dynamic>?;
+    _coinsBalance = (agencyMap?['coinsBalance'] as num?)?.toInt() ?? 0;
+    _fetchReferralCoins();
+  }
+
+  Future<void> _fetchReferralCoins() async {
+    final userData = AuthStorageService.getUserData();
+    final agencyMap = userData?['agency'] as Map<String, dynamic>?;
+    final agencyId = userData?['agencyId']?.toString() ?? agencyMap?['id']?.toString();
+    if (agencyId == null) return;
+
+    try {
+      final res = await ApiService.get('/agencies/$agencyId/referral');
+      if (res['success'] == true && res['data'] != null) {
+        final data = res['data'] as Map<String, dynamic>;
+        final coins = (data['coinsBalance'] as num?)?.toInt() ?? 0;
+        if (mounted) {
+          setState(() {
+            _coinsBalance = coins;
+          });
+        }
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +122,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _buildCoinsCard(),
+          const Gap(16),
           _buildActivePlanCard(planTitle, planFee, currentAgencyName, storageQuota, waQuota),
           const Gap(24),
           const Text('Live Resource Quota Usage (PRD Sec 14)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
@@ -237,6 +271,90 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     );
   }
 
+  Widget _buildCoinsCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF9E6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFD54F)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFE082),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text('🪙', style: TextStyle(fontSize: 24)),
+          ),
+          const Gap(14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '$_coinsBalance PropCoins',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF8D6E63),
+                      ),
+                    ),
+                    const Gap(6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '₹$_coinsBalance Value',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Gap(4),
+                const Text(
+                  'Use your referral coins to discount or buy memberships!',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              context.push(AppRouter.referral).then((_) => _fetchReferralCoins());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD97706),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: const Text('Earn More', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _getPlanPrice(String tier) {
+    if (tier.contains('Enterprise')) return 19999;
+    if (tier.contains('Professional') || tier.contains('Pro')) return 7999;
+    if (tier.contains('Basic')) return 2999;
+    return 0; // Free Trial
+  }
+
   void _showUpgradePlanModal(BuildContext context, String currentPlan, String agencyId) {
     showModalBottomSheet(
       context: context,
@@ -265,7 +383,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 price: '₹0 / 14 Days',
                 desc: '2 Brokers, 10 Listings, 500 MB Cloud Storage, 50 WhatsApp Alerts',
                 isCurrent: currentPlan.contains('Trial') || currentPlan.contains('Free'),
-                onSelect: () => _handleSelectTier(ctx, agencyId, 'Free Trial'),
+                onSelect: () => _onPlanSelected(ctx, agencyId, 'Free Trial'),
               ),
               const Gap(12),
               _buildPlanOption(
@@ -273,7 +391,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 price: '₹2,999 / mo',
                 desc: '5 Brokers, 50 Listings, 5 GB Cloud Storage, 500 WhatsApp Alerts',
                 isCurrent: currentPlan.contains('Basic'),
-                onSelect: () => _handleSelectTier(ctx, agencyId, 'Basic'),
+                onSelect: () => _onPlanSelected(ctx, agencyId, 'Basic'),
               ),
               const Gap(12),
               _buildPlanOption(
@@ -281,7 +399,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 price: '₹7,999 / mo',
                 desc: '20 Brokers, 300 Listings, 25 GB Cloud Storage, 2,500 WhatsApp Alerts',
                 isCurrent: currentPlan.contains('Pro'),
-                onSelect: () => _handleSelectTier(ctx, agencyId, 'Professional'),
+                onSelect: () => _onPlanSelected(ctx, agencyId, 'Professional'),
               ),
               const Gap(12),
               _buildPlanOption(
@@ -289,7 +407,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 price: '₹19,999 / mo',
                 desc: 'Unlimited Brokers & Listings, 250 GB Dedicated Storage, 10,000 Alerts, SLA Support',
                 isCurrent: currentPlan.contains('Enterprise'),
-                onSelect: () => _handleSelectTier(ctx, agencyId, 'Enterprise'),
+                onSelect: () => _onPlanSelected(ctx, agencyId, 'Enterprise'),
               ),
             ],
           ),
@@ -298,8 +416,210 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     );
   }
 
-  Future<void> _handleSelectTier(BuildContext modalContext, String agencyId, String targetTier) async {
+  void _onPlanSelected(BuildContext modalContext, String agencyId, String targetTier) {
     Navigator.pop(modalContext);
+    final price = _getPlanPrice(targetTier);
+
+    if (price == 0 || _coinsBalance <= 0) {
+      // Free trial or no coins to redeem
+      _handleSelectTier(agencyId, targetTier);
+      return;
+    }
+
+    // Show Redemption dialog
+    final redeemableCoins = _coinsBalance > price ? price : _coinsBalance;
+    bool useCoins = true;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final discount = useCoins ? redeemableCoins : 0;
+          final finalPrice = price - discount;
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Confirm $targetTier Plan', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                  const Gap(12),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Plan Price', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                            Text('₹$price / month', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        if (useCoins) ...[
+                          const Gap(8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Row(
+                                children: [
+                                  Text('🪙 PropCoins Discount', style: TextStyle(fontSize: 14, color: Color(0xFFD97706), fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                              Text('-₹$discount', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green)),
+                            ],
+                          ),
+                        ],
+                        const Divider(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Net Payable', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text(
+                              finalPrice == 0 ? '₹0 (100% Free with Coins!)' : '₹$finalPrice / month',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: finalPrice == 0 ? Colors.green : AppColors.primaryBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Gap(16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: CheckboxListTile(
+                      value: useCoins,
+                      activeColor: const Color(0xFFD97706),
+                      title: Text(
+                        'Redeem $redeemableCoins PropCoins (₹$redeemableCoins discount)',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                      ),
+                      subtitle: Text(
+                        'Available Balance: $_coinsBalance coins',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                      ),
+                      onChanged: (val) {
+                        setModalState(() {
+                          useCoins = val ?? true;
+                        });
+                      },
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ),
+                  const Gap(20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        if (useCoins && redeemableCoins > 0) {
+                          _handleRedeemCoins(agencyId, targetTier, redeemableCoins);
+                        } else {
+                          _handleSelectTier(agencyId, targetTier);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text(
+                        useCoins && finalPrice == 0
+                            ? 'Activate with PropCoins'
+                            : 'Confirm & Upgrade to $targetTier',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleRedeemCoins(String agencyId, String targetTier, int coinsToRedeem) async {
+    setState(() => _isUpgrading = true);
+
+    try {
+      final res = await ApiService.post('/agencies/$agencyId/redeem-coins', {
+        'coinsToRedeem': coinsToRedeem,
+        'targetTier': targetTier,
+      });
+
+      if (res['success'] == true) {
+        final data = res['data'] as Map<String, dynamic>?;
+        final remainingCoins = (data?['remainingCoins'] as num?)?.toInt() ?? (_coinsBalance - coinsToRedeem);
+
+        // Update local session
+        final userData = AuthStorageService.getUserData() ?? {};
+        final agencyMap = Map<String, dynamic>.from(userData['agency'] as Map? ?? {});
+        agencyMap['subscriptionTier'] = targetTier;
+        agencyMap['coinsBalance'] = remainingCoins;
+        userData['agency'] = agencyMap;
+        userData['subscriptionPlan'] = targetTier;
+        await AuthStorageService.updateUserData(userData);
+
+        if (mounted) {
+          setState(() {
+            _overriddenTier = targetTier;
+            _coinsBalance = remainingCoins;
+            _isUpgrading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Successfully redeemed $coinsToRedeem PropCoins and activated $targetTier!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isUpgrading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(res['message']?.toString() ?? 'Failed to redeem coins')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUpgrading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Network error redeeming coins: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleSelectTier(String agencyId, String targetTier) async {
     setState(() => _isUpgrading = true);
 
     try {

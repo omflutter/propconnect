@@ -27,10 +27,17 @@ export const multerUpload = multer({
   storage,
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB max per file
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (
+      file.mimetype.startsWith('image/') ||
+      file.mimetype === 'application/pdf' ||
+      file.mimetype.includes('pdf') ||
+      file.mimetype.includes('word') ||
+      file.mimetype.includes('document') ||
+      file.mimetype.includes('text')
+    ) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files (JPEG, PNG, WEBP, GIF) are allowed.'));
+      cb(new Error('Only images, PDFs, and document files are allowed.'));
     }
   },
 });
@@ -89,18 +96,20 @@ export const uploadMultipart = async (req: Request, res: Response) => {
  */
 export const uploadBase64 = async (req: Request, res: Response) => {
   try {
-    const { image, images, filename: customName } = req.body;
+    const rawSingle = req.body.image || req.body.document || req.body.file;
+    const rawMultiple = req.body.images || req.body.documents || req.body.files;
+    const customName = req.body.filename || req.body.title || req.body.name;
 
-    if (!image && (!images || !Array.isArray(images) || images.length === 0)) {
-      return errorResponse(res, 'Image base64 payload is required', null, 400);
+    if (!rawSingle && (!rawMultiple || !Array.isArray(rawMultiple) || rawMultiple.length === 0)) {
+      return errorResponse(res, 'File or image base64 payload is required', null, 400);
     }
 
-    const processBase64String = (b64: string, name?: string): { url: string; filename: string } => {
+    const processBase64String = (b64: string, name?: string): { url: string; filename: string; mimeType: string } => {
       let mimeType = 'image/jpeg';
       let cleanData = b64;
 
       if (b64.startsWith('data:')) {
-        const matches = b64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const matches = b64.match(/^data:([A-Za-z-+\/0-9.]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
           mimeType = matches[1];
           cleanData = matches[2];
@@ -108,11 +117,16 @@ export const uploadBase64 = async (req: Request, res: Response) => {
       }
 
       let ext = '.jpg';
-      if (mimeType.includes('png')) ext = '.png';
-      else if (mimeType.includes('webp')) ext = '.webp';
-      else if (mimeType.includes('gif')) ext = '.gif';
+      const mLower = mimeType.toLowerCase();
+      if (mLower.includes('pdf')) ext = '.pdf';
+      else if (mLower.includes('png')) ext = '.png';
+      else if (mLower.includes('webp')) ext = '.webp';
+      else if (mLower.includes('gif')) ext = '.gif';
+      else if (mLower.includes('word') || mLower.includes('document') || mLower.includes('docx')) ext = '.docx';
+      else if (mLower.includes('doc')) ext = '.doc';
+      else if (mLower.includes('text') || mLower.includes('plain')) ext = '.txt';
 
-      const prefix = name ? name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20) : 'prop';
+      const prefix = name ? name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) : 'doc';
       const uniqueFilename = `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${ext}`;
       const filePath = path.join(UPLOADS_DIR, uniqueFilename);
 
@@ -122,26 +136,27 @@ export const uploadBase64 = async (req: Request, res: Response) => {
       return {
         url: buildFileUrl(req, uniqueFilename),
         filename: uniqueFilename,
+        mimeType,
       };
     };
 
-    // Single image
-    if (image) {
-      const result = processBase64String(image, customName);
-      return successResponse(res, 'Image uploaded successfully', result, 201);
+    // Single item
+    if (rawSingle) {
+      const result = processBase64String(rawSingle, customName);
+      return successResponse(res, 'File uploaded successfully', result, 201);
     }
 
-    // Multiple images
-    if (Array.isArray(images)) {
-      const results = images.map((b64Item: string, idx: number) => 
-        processBase64String(b64Item, `prop_${idx + 1}`)
+    // Multiple items
+    if (Array.isArray(rawMultiple)) {
+      const results = rawMultiple.map((b64Item: string, idx: number) => 
+        processBase64String(b64Item, customName ? `${customName}_${idx + 1}` : `file_${idx + 1}`)
       );
-      return successResponse(res, `${results.length} images uploaded successfully`, {
+      return successResponse(res, `${results.length} files uploaded successfully`, {
         urls: results.map(r => r.url),
         files: results,
       }, 201);
     }
   } catch (error: any) {
-    return errorResponse(res, 'Base64 image upload failed', error.message || error, 500);
+    return errorResponse(res, 'Base64 file upload failed', error.message || error, 500);
   }
 };

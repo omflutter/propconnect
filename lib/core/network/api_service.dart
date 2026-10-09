@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -26,32 +27,137 @@ class ApiService {
   }
 
   static String? _authToken;
+  static VoidCallback? onSessionExpired;
+  static Future<void> Function(String newToken, Map<String, dynamic> user)? onTokenRefreshed;
 
   static void setAuthToken(String token) {
     _authToken = token;
   }
 
-  static const Duration _timeout = Duration(seconds: 18);
+  static String? getAuthToken() => _authToken;
 
-  static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body) async {
+  static const Duration _timeout = Duration(seconds: 12);
+
+  static bool _isRefreshing = false;
+  static final List<Completer<bool>> _refreshWaiters = [];
+
+  /// Proactively or reactively refresh the authentication token from PostgreSQL backend
+  static Future<bool> refreshToken() async {
+    if (_authToken == null || _authToken!.isEmpty) return false;
+
+    if (_isRefreshing) {
+      final completer = Completer<bool>();
+      _refreshWaiters.add(completer);
+      return completer.future;
+    }
+
+    _isRefreshing = true;
+
+    try {
+      final url = Uri.parse('$baseUrl/auth/refresh');
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final request = await client.postUrl(url).timeout(const Duration(seconds: 8));
+      request.headers.set('content-type', 'application/json; charset=UTF-8');
+      request.headers.set('authorization', 'Bearer $_authToken');
+      request.write(jsonEncode({'token': _authToken}));
+
+      final response = await request.close().timeout(const Duration(seconds: 8));
+      final responseBody = await response.transform(utf8.decoder).join().timeout(const Duration(seconds: 8));
+      client.close();
+
+      final decoded = jsonDecode(responseBody) as Map<String, dynamic>;
+      if (response.statusCode == 200 && decoded['success'] == true && decoded['data'] != null) {
+        final data = decoded['data'] as Map<String, dynamic>;
+        final newToken = data['token'] as String?;
+        final user = data['user'] as Map<String, dynamic>?;
+
+        if (newToken != null && newToken.isNotEmpty) {
+          _authToken = newToken;
+          if (user != null && onTokenRefreshed != null) {
+            await onTokenRefreshed!(newToken, user);
+          }
+          _resolveRefreshWaiters(true);
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    _resolveRefreshWaiters(false);
+    return false;
+  }
+
+  static void _resolveRefreshWaiters(bool success) {
+    _isRefreshing = false;
+    for (final waiter in _refreshWaiters) {
+      if (!waiter.isCompleted) {
+        waiter.complete(success);
+      }
+    }
+    _refreshWaiters.clear();
+  }
+
+  /// Core HTTP client with automatic 401 refresh-and-retry handling
+  static Future<Map<String, dynamic>> _sendRequest(
+    String method,
+    String endpoint, {
+    Map<String, dynamic>? body,
+    bool includeAuth = true,
+    bool isRetry = false,
+  }) async {
     final url = Uri.parse('$baseUrl$endpoint');
     final client = HttpClient()..connectionTimeout = _timeout;
 
     try {
-      final request = await client.postUrl(url).timeout(_timeout);
+      HttpClientRequest request;
+      switch (method.toUpperCase()) {
+        case 'POST':
+          request = await client.postUrl(url).timeout(_timeout);
+          break;
+        case 'PUT':
+          request = await client.putUrl(url).timeout(_timeout);
+          break;
+        case 'PATCH':
+          request = await client.patchUrl(url).timeout(_timeout);
+          break;
+        case 'DELETE':
+          request = await client.deleteUrl(url).timeout(_timeout);
+          break;
+        case 'GET':
+        default:
+          request = await client.getUrl(url).timeout(_timeout);
+          break;
+      }
+
       request.headers.set('content-type', 'application/json; charset=UTF-8');
-      
-      if (_authToken != null) {
+      if (includeAuth && _authToken != null && _authToken!.isNotEmpty) {
         request.headers.set('authorization', 'Bearer $_authToken');
       }
 
-      final jsonString = jsonEncode(body);
-      request.write(jsonString);
+      if (body != null) {
+        request.write(jsonEncode(body));
+      }
 
       final response = await request.close().timeout(_timeout);
       final responseBody = await response.transform(utf8.decoder).join().timeout(_timeout);
-      final decodedData = jsonDecode(responseBody) as Map<String, dynamic>;
 
+      // Auto 401 Refresh & Transparent Retry Interceptor
+      if (response.statusCode == 401 && !isRetry && !endpoint.startsWith('/auth/')) {
+        client.close();
+        final refreshed = await refreshToken();
+        if (refreshed) {
+          return await _sendRequest(
+            method,
+            endpoint,
+            body: body,
+            includeAuth: includeAuth,
+            isRetry: true,
+          );
+        } else {
+          onSessionExpired?.call();
+        }
+      }
+
+      final decodedData = jsonDecode(responseBody) as Map<String, dynamic>;
       return decodedData;
     } catch (e) {
       return {
@@ -61,120 +167,26 @@ class ApiService {
     } finally {
       client.close();
     }
+  }
+
+  static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body) async {
+    return _sendRequest('POST', endpoint, body: body);
   }
 
   static Future<Map<String, dynamic>> patch(String endpoint, Map<String, dynamic> body) async {
-    final url = Uri.parse('$baseUrl$endpoint');
-    final client = HttpClient()..connectionTimeout = _timeout;
-
-    try {
-      final request = await client.patchUrl(url).timeout(_timeout);
-      request.headers.set('content-type', 'application/json; charset=UTF-8');
-      
-      if (_authToken != null) {
-        request.headers.set('authorization', 'Bearer $_authToken');
-      }
-
-      final jsonString = jsonEncode(body);
-      request.write(jsonString);
-
-      final response = await request.close().timeout(_timeout);
-      final responseBody = await response.transform(utf8.decoder).join().timeout(_timeout);
-      final decodedData = jsonDecode(responseBody) as Map<String, dynamic>;
-
-      return decodedData;
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error connecting to backend server ($e)',
-      };
-    } finally {
-      client.close();
-    }
+    return _sendRequest('PATCH', endpoint, body: body);
   }
 
   static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> body) async {
-    final url = Uri.parse('$baseUrl$endpoint');
-    final client = HttpClient()..connectionTimeout = _timeout;
-
-    try {
-      final request = await client.putUrl(url).timeout(_timeout);
-      request.headers.set('content-type', 'application/json; charset=UTF-8');
-      
-      if (_authToken != null) {
-        request.headers.set('authorization', 'Bearer $_authToken');
-      }
-
-      final jsonString = jsonEncode(body);
-      request.write(jsonString);
-
-      final response = await request.close().timeout(_timeout);
-      final responseBody = await response.transform(utf8.decoder).join().timeout(_timeout);
-      final decodedData = jsonDecode(responseBody) as Map<String, dynamic>;
-
-      return decodedData;
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error connecting to backend server ($e)',
-      };
-    } finally {
-      client.close();
-    }
+    return _sendRequest('PUT', endpoint, body: body);
   }
 
-  static Future<Map<String, dynamic>> get(String endpoint) async {
-    final url = Uri.parse('$baseUrl$endpoint');
-    final client = HttpClient()..connectionTimeout = _timeout;
-
-    try {
-      final request = await client.getUrl(url).timeout(_timeout);
-      request.headers.set('content-type', 'application/json; charset=UTF-8');
-      
-      if (_authToken != null) {
-        request.headers.set('authorization', 'Bearer $_authToken');
-      }
-
-      final response = await request.close().timeout(_timeout);
-      final responseBody = await response.transform(utf8.decoder).join().timeout(_timeout);
-      final decodedData = jsonDecode(responseBody) as Map<String, dynamic>;
-
-      return decodedData;
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error connecting to backend server ($e)',
-      };
-    } finally {
-      client.close();
-    }
+  static Future<Map<String, dynamic>> get(String endpoint, {bool includeAuth = true}) async {
+    return _sendRequest('GET', endpoint, includeAuth: includeAuth);
   }
 
   static Future<Map<String, dynamic>> delete(String endpoint) async {
-    final url = Uri.parse('$baseUrl$endpoint');
-    final client = HttpClient()..connectionTimeout = _timeout;
-
-    try {
-      final request = await client.deleteUrl(url).timeout(_timeout);
-      request.headers.set('content-type', 'application/json; charset=UTF-8');
-      
-      if (_authToken != null) {
-        request.headers.set('authorization', 'Bearer $_authToken');
-      }
-
-      final response = await request.close().timeout(_timeout);
-      final responseBody = await response.transform(utf8.decoder).join().timeout(_timeout);
-      final decodedData = jsonDecode(responseBody) as Map<String, dynamic>;
-
-      return decodedData;
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error connecting to backend server ($e)',
-      };
-    } finally {
-      client.close();
-    }
+    return _sendRequest('DELETE', endpoint);
   }
 
   /// PRD Sec 16: Send Property Brochure to Client WhatsApp via Interakt API
@@ -246,5 +258,38 @@ class ApiService {
   /// PRD Sec 17: Delete Notification
   static Future<Map<String, dynamic>> deleteNotification(int notificationId) async {
     return await delete('/notifications/$notificationId');
+  }
+
+  /// PRD Sec 7.3: Upload Deal Document
+  static Future<Map<String, dynamic>> uploadDealDocument(String dealId, {
+    required String title,
+    required String documentType,
+    String? fileUrl,
+    String? uploadedBy,
+    String? notes,
+  }) async {
+    return await post('/deals/$dealId/documents', {
+      'title': title,
+      'documentType': documentType,
+      'fileUrl': fileUrl,
+      'uploadedBy': uploadedBy,
+      'notes': notes,
+    });
+  }
+
+  /// Upload real document (PDF / image / doc) as Base64 to server storage
+  static Future<Map<String, dynamic>> uploadFileBase64({
+    required String base64Data,
+    required String fileName,
+  }) async {
+    return await post('/upload/base64', {
+      'document': base64Data,
+      'filename': fileName,
+    });
+  }
+
+  /// PRD Sec 7.3: Delete Deal Document
+  static Future<Map<String, dynamic>> deleteDealDocument(String dealId, String docId) async {
+    return await delete('/deals/$dealId/documents/$docId');
   }
 }

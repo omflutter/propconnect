@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:propconnect/core/constants/app_colors.dart';
 import 'package:propconnect/core/network/api_service.dart';
 import 'package:propconnect/core/routing/app_router.dart';
@@ -51,10 +50,10 @@ class PushNotificationService {
         sound: true,
       );
 
-      // 3. Check current permission status
-      await checkPermissionStatus();
+      // 3. Request Notification Permissions explicitly from OS (iOS & Android 13+)
+      await requestNotificationPermission(showSettingsIfDenied: false);
 
-      // 4. Obtain initial FCM Device Token if permission already granted or on Android
+      // 4. Obtain initial FCM Device Token if permission granted or Android
       await _fetchAndRegisterToken();
 
       // 5. Listen for Token Refreshes
@@ -74,6 +73,7 @@ class PushNotificationService {
       // 7. Handle notification click when app is in background
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         debugPrint('[FCM OpenedApp] User tapped notification: ${message.data}');
+        onMessageReceivedStream.add(message);
         _handleNotificationNavigation(message);
       });
 
@@ -81,6 +81,7 @@ class PushNotificationService {
       final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
       if (initialMessage != null) {
         debugPrint('[FCM InitialMessage] App launched from notification: ${initialMessage.data}');
+        onMessageReceivedStream.add(initialMessage);
         Future.delayed(const Duration(milliseconds: 800), () {
           _handleNotificationNavigation(initialMessage);
         });
@@ -90,19 +91,12 @@ class PushNotificationService {
     }
   }
 
-  /// Check whether notification permission is granted
+  /// Check whether notification permission is granted via FirebaseMessaging
   Future<bool> checkPermissionStatus() async {
     try {
-      if (kIsWeb) {
-        final settings = await FirebaseMessaging.instance.getNotificationSettings();
-        final granted = settings.authorizationStatus == AuthorizationStatus.authorized ||
-            settings.authorizationStatus == AuthorizationStatus.provisional;
-        isPermissionGrantedNotifier.value = granted;
-        return granted;
-      }
-
-      final status = await Permission.notification.status;
-      final granted = status.isGranted;
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      final granted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
       isPermissionGrantedNotifier.value = granted;
       return granted;
     } catch (e) {
@@ -117,32 +111,8 @@ class PushNotificationService {
     bool showSettingsIfDenied = true,
   }) async {
     try {
-      debugPrint('[FCM] Requesting notification permission...');
-      
-      // 1. Request via permission_handler for Android 13+ POST_NOTIFICATIONS & iOS
-      if (!kIsWeb) {
-        final currentStatus = await Permission.notification.status;
-        
-        if (currentStatus.isPermanentlyDenied) {
-          debugPrint('[FCM] Notification permission permanently denied.');
-          if (showSettingsIfDenied && context != null && context.mounted) {
-            _showSettingsDialog(context);
-          }
-          isPermissionGrantedNotifier.value = false;
-          return false;
-        }
+      debugPrint('[FCM] Requesting notification permission via FirebaseMessaging...');
 
-        final status = await Permission.notification.request();
-        if (status.isPermanentlyDenied) {
-          if (showSettingsIfDenied && context != null && context.mounted) {
-            _showSettingsDialog(context);
-          }
-          isPermissionGrantedNotifier.value = false;
-          return false;
-        }
-      }
-
-      // 2. Request via Firebase Messaging instance
       final settings = await FirebaseMessaging.instance.requestPermission(
         alert: true,
         announcement: false,
@@ -161,6 +131,10 @@ class PushNotificationService {
 
       if (isGranted) {
         await _fetchAndRegisterToken();
+      } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        if (showSettingsIfDenied && context != null && context.mounted) {
+          _showSettingsDialog(context);
+        }
       }
 
       return isGranted;
@@ -197,6 +171,11 @@ class PushNotificationService {
 
   /// Sync device FCM token with PostgreSQL user profile
   Future<void> syncTokenWithBackend() async {
+    if (_currentToken == null || _currentToken!.isEmpty) {
+      try {
+        _currentToken = await FirebaseMessaging.instance.getToken();
+      } catch (_) {}
+    }
     if (_currentToken == null || _currentToken!.isEmpty) return;
 
     final userData = AuthStorageService.getUserData();
@@ -299,9 +278,15 @@ class PushNotificationService {
   void _handleNotificationNavigation(RemoteMessage message) {
     final actionRoute = message.data['actionRoute'] as String?;
     final type = message.data['type'] as String?;
+    final dealId = message.data['dealId'] ?? message.data['id'];
 
     if (actionRoute != null && actionRoute.isNotEmpty) {
       _navigate(actionRoute);
+      return;
+    }
+
+    if (type == 'deal' && dealId != null && dealId.toString().isNotEmpty) {
+      _navigate('/deal-details/$dealId');
       return;
     }
 
@@ -330,9 +315,17 @@ class PushNotificationService {
 
   void _navigate(String route) {
     try {
+      if (route.startsWith('/deals/') && route != '/deals') {
+        final id = route.replaceFirst('/deals/', '');
+        AppRouter.router.push('/deal-details/$id');
+        return;
+      }
       AppRouter.router.push(route);
     } catch (e) {
       debugPrint('[FCM Navigation Error] Could not navigate to $route: $e');
+      try {
+        AppRouter.router.go(route);
+      } catch (_) {}
     }
   }
 
@@ -363,9 +356,14 @@ class PushNotificationService {
               backgroundColor: AppColors.primaryBlue,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(dialogContext);
-              openAppSettings();
+              try {
+                final uri = Uri.parse('app-settings:');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              } catch (_) {}
             },
             child: const Text('Open Settings', style: TextStyle(color: Colors.white)),
           ),
